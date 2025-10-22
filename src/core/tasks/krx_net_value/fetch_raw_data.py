@@ -4,6 +4,13 @@ from typing import Any, Dict, List, Optional, TypedDict
 from core.tasks.base_task import Task
 from core.ports.krx_data_port import KrxDataPort
 
+# --- [ Assuming these imports are correct for testing ] ---
+# This test code needs the adapter to run.
+# Make sure your sys.path is set correctly (e.g., `pip install -e .`)
+from infra.adapters.krx_http_adapter import KrxHttpAdapter
+# -----------------------------------------------------------
+
+
 class FetchKrxNetValueTaskInput(TypedDict):
     """FetchKrxNetValueTask execute 메서드의 입력을 정의합니다."""
     date_str: Optional[str]

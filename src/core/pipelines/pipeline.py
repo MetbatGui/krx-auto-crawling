@@ -35,7 +35,7 @@ class Pipeline(ABC):
                 print(f"[Step {i+1}/{len(self._steps)}] Executing Task: {task_name}")
                 
                 # 이전 Task의 결과를 현재 Task의 입력으로 전달
-                result = task.execute(**current_input)
+                result = task.execute(current_input)
                 
                 # Task 결과 상태 확인 및 파이프라인 중단 로직
                 if result.get('status') == 'FAILED':

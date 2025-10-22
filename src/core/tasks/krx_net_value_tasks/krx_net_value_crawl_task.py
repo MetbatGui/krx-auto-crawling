@@ -2,7 +2,7 @@ import pandas as pd
 from typing import Dict, Any, List
 
 # Core Interfaces & Dependencies
-from src.core.task import Task
+from core.tasks.base_task import Task
 from src.crawler.daily_net_value_crawler import DailyNetValueCrawler
 
 # --- 1. Crawl Task: 단일 시장/투자자 크롤링 (T1 & T2의 기본 단위) ---

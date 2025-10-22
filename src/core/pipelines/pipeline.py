@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List
-from src.core.task import Task
+from core.tasks.base_task import Task
 
 class Pipeline(ABC):
     """

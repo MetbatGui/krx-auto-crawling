@@ -1,57 +1,82 @@
-# core/pipelines/daily_krx_net_value_pipeline.py (수정)
-from typing import Optional, Dict, Any, cast
+from typing import Optional, Dict, Any
 
-# ... (Adapter 및 Task 클래스 imports) ...
+# --- 1. Infrastructure (Adapters) ---
 from infra.adapters.krx_http_adapter import KrxHttpAdapter
 from infra.adapters.local_storage_adapter import LocalStorageAdapter
+from infra.adapters.excel_storage_adapter import ExcelStorageAdapter
 
+# --- 2. Core (Tasks) ---
 from core.tasks.krx_net_value.fetch_raw_data import (
     FetchKrxNetValueTask,
-    FetchKrxNetValueTaskInput,
-    FetchKrxNetValueTaskOutput
+    FetchKrxNetValueTaskInput
 )
 from core.tasks.krx_net_value.standardize_data import (
-    StandardizeKrxDataTask,
-    StandardizeDataTaskOutput
+    StandardizeKrxDataTask
 )
 from core.tasks.krx_net_value.process_watchlist import (
-    ProcessWatchlistTask,
-    ProcessWatchlistTaskOutput
+    ProcessWatchlistTask
 )
 from core.tasks.krx_net_value.upload_watchlist import (
-    UploadWatchlistTask,
-    UploadWatchlistTaskOutput
+    UploadWatchlistTask
+)
+from core.tasks.krx_net_value.upload_daily_reports import (
+    UploadDailyReportsTask
 )
 
 class DailyKrxNetValuePipeline:
     """
-    일별 KRX 순매수 데이터 파이프라인 (공유 컨텍스트 방식)
+    일별 KRX 순매수 데이터 수집, 가공, 파일 저장을
+    순차적으로 실행하는 파이프라인 (공유 컨텍스트 방식).
     """
 
     def __init__(self, output_base_path: str = "output"):
         """
-        파이프라인 초기화 (Adapter 및 Task 조립)
+        파이프라인 초기화 시, 필요한 모든 'Adapter'와 'Task'를
+        미리 생성하고 의존성을 주입(DI)합니다.
+
+        Args:
+            output_base_path (str): 모든 산출물이 저장될 루트 디렉터리.
         """
+        
         # 1. Adapters 생성
         krx_port_adapter = KrxHttpAdapter()
         
-        # [수정됨] LocalStorageAdapter 사용
-        storage_adapter = LocalStorageAdapter(base_path=output_base_path)
+        # (Adapter 1: HTS Watchlist용 - CSV 저장)
+        # -> 'output/watchlist' 경로에 저장
+        hts_storage_adapter = LocalStorageAdapter(
+            base_path=output_base_path 
+            # (LocalStorageAdapter가 내부적으로 /watchlist를 추가함)
+        )
+        
+        # (Adapter 2: Daily Reports용 - XLSX 저장)
+        # -> 'output/순매수' 경로에 저장
+        excel_storage_adapter = ExcelStorageAdapter(
+            base_path=output_base_path
+            # (ExcelStorageAdapter가 내부적으로 /순매수를 추가함)
+        )
 
         # 2. Tasks 생성 및 의존성 주입
         self.fetch_task = FetchKrxNetValueTask(krx_port=krx_port_adapter)
         self.standardize_task = StandardizeKrxDataTask()
         self.watchlist_task = ProcessWatchlistTask()
-        self.upload_task = UploadWatchlistTask(storage_port=storage_adapter)
         
-        # [수정됨] 실행 순서대로 Task 리스트 정의
+        # (Task 4: Watchlist CSV 저장 Task)
+        self.upload_watchlist_task = UploadWatchlistTask(
+            storage_port=hts_storage_adapter
+        )
+        
+        # (Task 5: Daily Reports XLSX 저장 Task)
+        self.upload_reports_task = UploadDailyReportsTask(
+            storage_port=excel_storage_adapter
+        )
+        
+        # 3. 실행 순서 정의
         self.pipeline_steps = [
             self.fetch_task,
             self.standardize_task,
             self.watchlist_task,
-            self.upload_task,
-            # (향후 'Standardize된 data'를 사용하는 
-            #  새 Task를 여기에 추가하기만 하면 됩니다)
+            self.upload_watchlist_task, # HTS CSV 저장
+            self.upload_reports_task, # 일일 리포트 XLSX 저장
         ]
 
     def run(self, date_str: Optional[str] = None) -> Dict[str, Any]:
@@ -64,6 +89,7 @@ class DailyKrxNetValuePipeline:
 
         Args:
             date_str (Optional[str]): 조회할 날짜(YYYYMMDD).
+                                      None이면 Task 내부에서 오늘 날짜를 사용합니다.
 
         Returns:
             Dict[str, Any]: 모든 Task의 결과가 누적된 최종 'context' 딕셔너리.
@@ -71,19 +97,18 @@ class DailyKrxNetValuePipeline:
         print("=== 🚀 일별 KRX 수급 파이프라인 시작 ===")
         
         # 1. 초기 컨텍스트 생성
-        # (FetchKrxNetValueTaskInput과 호환됨)
-        context: Dict[str, Any] = {'date_str': date_str}
+        initial_input: FetchKrxNetValueTaskInput = {'date_str': date_str}
+        context: Dict[str, Any] = initial_input
 
         # 2. 파이프라인 순차 실행
         for task in self.pipeline_steps:
             task_name = task.__class__.__name__
             
             try:
-                # [핵심] 현재 context를 Task에 전달하여 실행
-                # (TypedDict 덕분에 타입 체커가 호환성을 검사해 줌)
+                # 현재 context를 Task에 전달하여 실행
                 task_output = task.execute(context) # type: ignore
                 
-                # [핵심] Task의 결과를 context에 병합(업데이트)
+                # Task의 결과를 context에 병합(업데이트)
                 context.update(task_output)
 
                 # 3. 실패 시 즉시 중단
@@ -104,15 +129,24 @@ class DailyKrxNetValuePipeline:
         # 4. 모든 결과가 누적된 최종 컨텍스트 반환
         return context
 
+
 # --- [ 테스트 실행 코드 ] ---
 if __name__ == "__main__":
     print("--- 파이프라인 개별 테스트 시작 ---")
 
-    pipeline = DailyKrxNetValuePipeline(output_base_path="output")
-    TEST_DATE = "20251021"
+    # (현재 시간이 오후 4시 10분이므로, 오늘 날짜 데이터가 있습니다)
+    # TEST_DATE = "20251022" 
     
+    # (안정적인 테스트를 위해 어제 날짜 사용)
+    TEST_DATE = "20251022"
+
+    # 1. 파이프라인 인스턴스 생성 (루트 'output' 폴더 기준)
+    pipeline = DailyKrxNetValuePipeline(output_base_path="output")
+    
+    # 2. 파이프라인 실행
     final_context = pipeline.run(date_str=TEST_DATE)
 
+    # 3. 최종 결과 요약 출력
     print("\n--- 파이프라인 최종 결과 요약 ---")
     print(f"Status: {final_context.get('status')}")
     print(f"Message: {final_context.get('message')}")
@@ -120,6 +154,7 @@ if __name__ == "__main__":
     print("최종 Context Keys:")
     print(final_context.keys())
     
-    # (예상되는 최종 Context Keys)
-    # dict_keys(['date_str', 'status', 'raw_bytes_dict', 'message', 
-    #            'processed_dfs_dict', 'watchlist_df', 'destination_path'])
+    # 예상 키: 
+    # 'date_str', 'status', 'raw_bytes_dict', 'message', 
+    # 'processed_dfs_dict', 'watchlist_df', 'destination_path' (-> UploadWatchlistTask에서 제거됨)
+    # 최종 Task의 status와 message가 덮어쓰기됨.

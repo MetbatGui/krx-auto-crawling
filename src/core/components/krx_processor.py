@@ -68,7 +68,7 @@ def process_krx_net_value_excel(excel_bytes: bytes) -> pd.DataFrame:
     
     # 최종 컬럼 선택 및 이름 변경
     df_final = df_top20[required_cols].rename(
-        columns={sort_col: '순매수대금(천원)'}
+        columns={sort_col: '순매수_거래대금'}
     )
     
     return df_final

@@ -46,8 +46,9 @@ class LocalStorageAdapter(StoragePort):
         try:
             df.to_csv(
                 full_path, 
-                header=False,  # <-- HTS 형식 (헤더 없음)
-                index=False    # <-- HTS 형식 (인덱스 없음)
+                header=True,  # <-- HTS 형식 (헤더 없음)
+                index=False,    # <-- HTS 형식 (인덱스 없음)
+                encoding='cp949'
             )
             print(f"  [Adapter:Local] '{full_path}' 파일로 DF 저장 (행: {len(df)})")
             return True

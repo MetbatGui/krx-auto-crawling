@@ -6,7 +6,7 @@ import time
 from dotenv import load_dotenv
 import requests.exceptions
 
-from ports.krx_data_port import KrxDataPort
+from core.ports.krx_data_port import KrxDataPort
 
 load_dotenv()
 

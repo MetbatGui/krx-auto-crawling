@@ -161,7 +161,7 @@ if __name__ == "__main__":
     print("--- 파이프라인 개별 테스트 시작 ---")
 
     # (현재 시간이 2025년 10월 23일 오후 1시 48분이므로, 어제 날짜로 테스트)
-    TEST_DATE = "20251022" 
+    TEST_DATE = "20251023" 
 
     # 1. 파이프라인 인스턴스 생성 (루트 'output' 폴더 기준)
     pipeline = DailyKrxNetValuePipeline(output_base_path="output")

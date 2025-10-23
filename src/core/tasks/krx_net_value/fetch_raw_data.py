@@ -1,4 +1,5 @@
 import itertools
+import datetime  # [추가] 날짜 기본값 설정을 위해 import
 from typing import Any, Dict, List, Optional, TypedDict
 
 from core.tasks.base_task import Task
@@ -60,6 +61,14 @@ class FetchKrxNetValueTask(Task):
         print(f"--- [Task] {self.__class__.__name__} 시작 (I/O) ---")
 
         date_str: Optional[str] = context.get('date_str')
+
+        # --- [수정된 부분] ---
+        # date_str이 없는 경우(None) 파이프라인 시작점에서 오늘 날짜로 지정
+        if not date_str:
+            date_str = datetime.date.today().strftime('%Y%m%d')
+            print(f"  -> ⚠️ date_str가 없어 오늘 날짜({date_str})로 지정합니다.")
+        # ---------------------
+
         raw_bytes_dict: Dict[str, bytes] = {}
         failed_targets: List[str] = []
         
@@ -67,6 +76,7 @@ class FetchKrxNetValueTask(Task):
             key = f"{market}_{investor}"
             try:
                 print(f"  -> {key} 원본 데이터 수집 요청 (Port 호출)")
+                # Port 호출 시 확정된 date_str 사용
                 raw_data = self.krx_port.fetch_net_value_data(market, investor, date_str)
                 raw_bytes_dict[key] = raw_data
                 

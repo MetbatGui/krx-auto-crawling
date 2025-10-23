@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional, TypedDict
 import pandas as pd
-import datetime
+# import datetime  # [제거] date_str 기본값 설정 로직이 FetchTask로 이동됨
 
 from core.tasks.base_task import Task
 from core.ports.storage_port import StoragePort
@@ -43,7 +43,7 @@ class UploadDailyReportsTask(Task):
         }
 
     def execute(self, context: UploadDailyReportsTaskInput) -> UploadDailyReportsTaskOutput:
-        """Task 실행: 4개 DF를 각각 '종목코드' 제외하고 엑셀로 저장"""
+        """Task 실행: 4개 DF를 각각 엑셀로 저장"""
         
         print(f"--- [Task] {self.__class__.__name__} 시작 (Upload Reports) ---")
         
@@ -57,9 +57,12 @@ class UploadDailyReportsTask(Task):
                 date_str=date_str, status='skipped', message='이전 Task 실패로 건너뜀'
             )
 
-        if not date_str:
-            date_str = datetime.date.today().strftime('%Y%m%d')
-            print(f"  -> ⚠️ date_str가 없어 오늘 날짜({date_str})로 파일명을 지정합니다.")
+        # --- [수정된 부분] ---
+        # date_str 기본값 설정 로직 제거 (FetchTask로 이동)
+        # ---------------------
+        # if not date_str:
+        #     date_str = datetime.date.today().strftime('%Y%m%d')
+        #     print(f"  -> ⚠️ date_str가 없어 오늘 날짜({date_str})로 파일명을 지정합니다.")
 
         saved_files: List[str] = []
         failed_files: List[str] = []
@@ -68,10 +71,8 @@ class UploadDailyReportsTask(Task):
             
             df = processed_dfs_dict.get(key)
             
-            # --- [수정된 부분] ---
-            # 파일 이름 형식을 '날짜이름순매수.xlsx'로 변경
+            # (파일 이름 형식은 기존과 동일)
             file_name = f"{date_str}{file_suffix}순매수.xlsx"
-            # ---------------------
 
             if df is None or df.empty:
                 print(f"  -> ⚠️ {key} 데이터가 없어 '{file_name}' 생성을 건너뜁니다.")
@@ -79,12 +80,11 @@ class UploadDailyReportsTask(Task):
                 continue
 
             try:
-                if '종목코드' in df.columns:
-                    df_to_save = df.drop(columns=['종목코드'])
-                else:
-                    df_to_save = df
-                
-                success = self.storage_port.save(df_to_save, file_name)
+                # --- [수정된 부분] ---
+                # '종목코드' 제거 로직은 StandardizeTask로 이동되었습니다.
+                # 따라서 전달받은 df를 바로 저장합니다.
+                success = self.storage_port.save(df, file_name)
+                # ---------------------
                 
                 if success:
                     saved_files.append(file_name)

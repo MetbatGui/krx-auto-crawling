@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional, TypedDict
 import pandas as pd
-import datetime
+# import datetime  # [제거] date_str 기본값 설정 로직이 FetchTask로 이동됨
 
 from core.tasks.base_task import Task
 from core.ports.storage_port import StoragePort
@@ -65,20 +65,28 @@ class UploadWatchlistTask(Task):
                 message='이전 Task 실패로 건너뜀'
             )
         
-        # 2. 날짜가 없는 경우(파이프라인이 None으로 시작한 경우) 오늘 날짜로 대체
-        if not date_str:
-            # (참고: 현재 KST 기준 '오늘' 날짜를 사용합니다)
-            today = datetime.date.today().strftime('%Y%m%d')
-            print(f"  -> ⚠️ date_str가 없어 오늘 날짜({today})로 파일명을 지정합니다.")
-            date_str = today
+        # --- [수정된 부분] ---
+        # 2. 날짜 기본값 설정 로직 제거 (FetchTask로 이동됨)
+        # ---------------------
+        # if not date_str:
+        #     today = datetime.date.today().strftime('%Y%m%d')
+        #     print(f"  -> ⚠️ date_str가 없어 오늘 날짜({today})로 파일명을 지정합니다.")
+        #     date_str = today
         
         # 3. 저장 위치(이름) 결정
-        # (Adapter는 'output/watchlist/' 경로를 알고 있음)
         destination_name = f"{date_str}_watchlist.csv"
 
         try:
+            # --- [수정된 부분] ---
+            # ProcessTask의 책임을 UploadTask(I/O)로 이동
+            # HTS 저장을 위한 포맷팅: 빈 컬럼 추가 ('종목명' -> '종목명,')
+            # 원본 context 수정을 방지하기 위해 .copy() 사용
+            df_to_save = watchlist_df.copy()
+            df_to_save[''] = ''
+            # ---------------------
+
             # 4. Port(약속)를 통해 데이터 저장 (I/O)
-            success = self.storage_port.save(watchlist_df, destination_name)
+            success = self.storage_port.save(df_to_save, destination_name)
             
             if not success:
                 raise Exception("Adapter의 save() 메서드가 False를 반환함")

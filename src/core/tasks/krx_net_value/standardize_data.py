@@ -76,6 +76,13 @@ class StandardizeKrxDataTask(Task):
                 # Component(순수 로직)로 데이터 가공
                 df = process_krx_net_value_excel(raw_bytes)
                 
+                # --- [수정된 부분] ---
+                # Upload Task의 책임을 Standardize Task로 이동
+                # '종목코드' 컬럼이 있다면 표준화 단계에서 미리 제거
+                if '종목코드' in df.columns:
+                    df = df.drop(columns=['종목코드'])
+                # ---------------------
+
                 if not df.empty:
                     processed_dfs_dict[key] = df
                 else:

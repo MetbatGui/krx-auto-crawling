@@ -20,7 +20,7 @@ class ProcessWatchlistTask(Task):
     """
     Standardize Task의 결과(processed_dfs_dict)를 받아 
     Watchlist DataFrame을 생성합니다. (순수 가공 책임)
-    '종목명' 단일 컬럼과 콤마 구분을 위한 빈 컬럼으로 구성됩니다.
+    '종목명' 단일 컬럼으로 구성됩니다.
     """
 
     def __init__(self):
@@ -78,11 +78,11 @@ class ProcessWatchlistTask(Task):
         final_series = pd.concat(stock_names_list, ignore_index=True)
         final_df = final_series.to_frame(name='종목명')
 
-        # [!!!] 콤마 포함을 위해 빈 컬럼 추가
-        # 헤더를 '종목명,'로 만들고, 각 행을 '현대로템,'로 만듭니다.
-        final_df[''] = '' 
+        # --- [수정된 부분] ---
+        # HTS 포맷팅용 빈 컬럼 추가 로직은 UploadTask로 이동
+        # ---------------------
         
-        print(f"  -> [Task] 총 {len(final_df)}개 종목명 Watchlist 생성 완료 (빈 컬럼 추가).")
+        print(f"  -> [Task] 총 {len(final_df)}개 종목명 Watchlist 생성 완료.")
 
         return ProcessWatchlistTaskOutput(
             date_str=date_str,

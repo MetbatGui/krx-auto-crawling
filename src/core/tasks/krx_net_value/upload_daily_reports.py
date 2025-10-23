@@ -36,10 +36,10 @@ class UploadDailyReportsTask(Task):
         
         # (기존과 동일)
         self.report_targets = {
-            'KOSPI_foreigner': '외국인코스피',
-            'KOSDAQ_foreigner': '외국인코스닥',
-            'KOSPI_institutions': '기관코스피',
-            'KOSDAQ_institutions': '기관코스닥',
+            'KOSPI_foreigner': '코스피외국인',
+            'KOSDAQ_foreigner': '코스닥외국인',
+            'KOSPI_institutions': '코스피기관',
+            'KOSDAQ_institutions': '코스닥기관',
         }
 
     def execute(self, context: UploadDailyReportsTaskInput) -> UploadDailyReportsTaskOutput:

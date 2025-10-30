@@ -14,7 +14,7 @@ TARGET_ACCOUNTS = [
     '영업이익',
     '당기순이익'
 ]
-"""손익계산서에서 추출할 계정명 리스트"""
+"""손익계산서에서 추출할 *표준* 계정명 리스트"""
 
 
 def setup_api():
@@ -105,14 +105,6 @@ def extract_financial_statements(corp_code, start_date):
             dataset='xbrl'
         )
         print(" [성공] 재무제표 객체(fs) 추출 완료. (반기/연간 데이터 포함된 원본)")
-        
-        # [!!! 핵심 디버깅 수정 !!!]
-        # fs.keys() 대신 fs 객체 자체를 출력하여
-        # 라이브러리가 'is', 'bs' 등을 제대로 인식했는지 확인합니다.
-        
-        print(f" [디버깅] fs 객체 인식 결과:")
-        print(fs)
-
         return fs
     except Exception as e:
         print(f" [오류] 재무제표 추출 중 오류 발생: {e}")
@@ -134,10 +126,16 @@ def calculate_all_quarters(df_all_dates):
     """
     print("[처리] 4분기 계산 및 순수 분기 데이터 취합을 시작합니다...")
     
-    df_all_dates = df_all_dates.apply(pd.to_numeric, errors='coerce').fillna(0)
-    
-    df_quarterly = pd.DataFrame(index=df_all_dates.index)
-    all_cols = df_all_dates.columns
+    try:
+        df_numeric = df_all_dates.astype(str).replace(',', '', regex=True)
+        df_numeric = df_numeric.apply(pd.to_numeric, errors='coerce').fillna(0)
+        print(" [처리] 데이터 클리닝 (콤마 제거 및 숫자 변환) 완료.")
+    except Exception as e:
+        print(f" [오류] 데이터 클리닝 중 오류 발생: {e}")
+        return None
+
+    df_quarterly = pd.DataFrame(index=df_numeric.index)
+    all_cols = df_numeric.columns
     
     years = sorted(list(set([col[0:4] for col in all_cols])))
 
@@ -149,14 +147,14 @@ def calculate_all_quarters(df_all_dates):
         col_3q_cum = f"{year}0101-{year}0930"
 
         if col_1q in all_cols:
-            df_quarterly[f"{year}.1"] = df_all_dates[col_1q]
+            df_quarterly[f"{year}.1"] = df_numeric[col_1q]
         if col_2q in all_cols:
-            df_quarterly[f"{year}.2"] = df_all_dates[col_2q]
+            df_quarterly[f"{year}.2"] = df_numeric[col_2q]
         if col_3q in all_cols:
-            df_quarterly[f"{year}.3"] = df_all_dates[col_3q]
+            df_quarterly[f"{year}.3"] = df_numeric[col_3q]
 
         if col_annual in all_cols and col_3q_cum in all_cols:
-            df_quarterly[f"{year}.4"] = df_all_dates[col_annual] - df_all_dates[col_3q_cum]
+            df_quarterly[f"{year}.4"] = df_numeric[col_annual] - df_numeric[col_3q_cum]
             print(f" [처리] {year}년 4분기 데이터 계산 완료.")
         else:
             print(f" [알림] {year}년 4분기 데이터 계산 스킵 (연간 또는 3분기 누적 데이터 부족)")
@@ -168,14 +166,15 @@ def calculate_all_quarters(df_all_dates):
     return df_quarterly
 
 
-def process_income_statement(fs, target_accounts):
-    """재무제표 객체(fs)에서 손익계산서(IS)를 추출하고,
-    필요한 계정(target_accounts)만 필터링한 뒤, 4분기를 계산하여
+def process_income_statement(fs, target_accounts, corp_name_for_debug=""):
+    """재무제표 객체(fs)에서 손익계산서(IS 또는 CIS)를 추출하고,
+    계정명을 표준화한 뒤, 4분기를 계산하여
     최종 분기별 DataFrame (억원 단위)을 반환합니다.
 
     Args:
         fs (dart_fss.fs.FinancialStatement): 추출된 재무제표 객체.
-        target_accounts (list): 추출할 계정명 리스트.
+        target_accounts (list): 추출할 *표준* 계정명 리스트.
+        corp_name_for_debug (str, optional): 디버그 파일 저장 시 사용할 기업명.
 
     Returns:
         pd.DataFrame | None: 
@@ -183,13 +182,45 @@ def process_income_statement(fs, target_accounts):
     """
     print("\n--- 손익계산서(IS) 처리 및 필터링 시작 ---")
     try:
-        print("[처리] fs['is']를 사용하여 '원본' 손익계산서 DataFrame을 추출합니다.")
+        # [!!! 핵심 수정 1: 계정명 매핑 테이블 정의 !!!]
+        # {표준 이름: [DART에서 사용되는 실제 이름들...]}
+        ACCOUNT_NAME_MAP = {
+            '매출액': ['매출액', '수익(매출액)'],
+            '영업이익': ['영업이익', '영업이익(손실)'],
+            '당기순이익': ['당기순이익', '당기순이익(손실)', '분기순이익', '분기순이익(손실)']
+        }
+        
+        # 1-1. 필터링할 모든 실제 이름 리스트 생성
+        # (예: ['매출액', '수익(매출액)', '영업이익', '영업이익(손실)', ...])
+        all_names_to_filter = []
+        for std_name in target_accounts:
+            all_names_to_filter.extend(ACCOUNT_NAME_MAP.get(std_name, [std_name]))
+        
+        # 1-2. 역방향 매핑 테이블 생성 (실제 이름 -> 표준 이름)
+        # (예: {'영업이익(손실)': '영업이익', '수익(매출액)': '매출액'})
+        RENAME_MAP = {dart_name: std_name 
+                      for std_name, dart_names in ACCOUNT_NAME_MAP.items() 
+                      for dart_name in dart_names}
+
+        # [핵심 2: 'is' 또는 'cis' 탐색]
+        print("[처리] fs['is'](손익계산서)를 먼저 시도합니다...")
         df_is = fs['is'] 
         
-        if df_is.empty:
-            print(" [실패] 손익계산서 데이터를 찾을 수 없습니다.")
-            return None
+        if df_is is None:
+            print(" [알림] 'is'를 찾지 못했습니다. fs['cis'](포괄손익계산서)를 시도합니다...")
+            df_is = fs['cis']
 
+        if df_is is None:
+            print(" [실패] fs 객체에서 'is'와 'cis'를 모두 찾지 못했습니다.")
+            return None
+        
+        if df_is.empty:
+            print(" [실패] 손익계산서(IS 또는 CIS) 데이터를 찾았으나 비어있습니다.")
+            return None
+        
+        print(" [성공] 손익계산서(IS 또는 CIS) DataFrame을 확보했습니다.")
+
+        # [핵심 3: 'label_ko' 컬럼 튜플 찾기]
         label_ko_col_tuple = None
         for col in df_is.columns:
             if isinstance(col, tuple) and len(col) > 1 and col[1] == 'label_ko':
@@ -201,14 +232,16 @@ def process_income_statement(fs, target_accounts):
             return None
         print(f"[처리] 'label_ko' 컬럼 ( {label_ko_col_tuple} )을 찾았습니다.")
 
-        print(f"[처리] {label_ko_col_tuple} 컬럼에서 {target_accounts} 항목을 필터링합니다...")
-        df_filtered = df_is[df_is[label_ko_col_tuple].isin(target_accounts)]
+        # [핵심 4: 'label_ko' 컬럼으로 행(Row) 필터링 (모든 이름 사용)]
+        print(f"[처리] {label_ko_col_tuple} 컬럼에서 {all_names_to_filter} 항목을 필터링합니다...")
+        df_filtered = df_is[df_is[label_ko_col_tuple].isin(all_names_to_filter)]
 
         if df_filtered.empty:
-            print(f" [실패] {target_accounts}에 해당하는 계정을 'label_ko' 컬럼에서 찾지 못했습니다.")
+            print(f" [실패] {all_names_to_filter}에 해당하는 계정을 'label_ko' 컬럼에서 찾지 못했습니다.")
             return None
-        print("[처리] 3가지 핵심 항목 필터링 성공.")
+        print(f"[처리] {len(df_filtered)}개의 행 필터링 성공.")
 
+        # [핵심 5: 컬럼 정리 및 인덱스 설정 (계산 준비 단계)]
         all_date_columns_tuples = []
         for col in df_filtered.columns:
             if isinstance(col, tuple) and '-' in str(col[0]):
@@ -217,8 +250,7 @@ def process_income_statement(fs, target_accounts):
         if not all_date_columns_tuples:
             print("[실패] 데이터에서 날짜 컬럼을 찾지 못했습니다.")
             return None
-            
-        print(f"[처리] {len(all_date_columns_tuples)}개의 전체 기간(분기,누적,연간) 컬럼을 찾았습니다.")
+        print(f"[처리] {len(all_date_columns_tuples)}개의 전체 기간 컬럼을 찾았습니다.")
 
         columns_to_keep = [label_ko_col_tuple] + all_date_columns_tuples
         df_final = df_filtered[columns_to_keep]
@@ -226,13 +258,26 @@ def process_income_statement(fs, target_accounts):
         new_column_names = ['label_ko'] + [col[0] for col in all_date_columns_tuples]
         df_final.columns = new_column_names
         
+        # [!!! 핵심 수정 6: 이름 표준화 및 인덱스 설정 !!!]
+        # 1. 'label_ko'의 값을 표준 이름으로 변경 (예: '영업이익(손실)' -> '영업이익')
+        df_final['label_ko'] = df_final['label_ko'].map(RENAME_MAP)
+        
+        # 2. (선택적) 표준 이름으로 중복이 발생하면 첫 번째 값만 남김
+        df_final = df_final.drop_duplicates(subset=['label_ko'], keep='first')
+        
+        # 3. 표준화된 'label_ko'를 인덱스로 설정
         df_final.set_index('label_ko', inplace=True)
         
+        # 4. 최종적으로 우리가 원하는 표준 계정명(target_accounts)만 남김
+        df_final = df_final.reindex(target_accounts)
+        
+        # [핵심 7: 4분기 계산]
         df_quarterly = calculate_all_quarters(df_final)
         
         if df_quarterly is None:
             return None
 
+        # [핵심 8: '억원' 단위로 변환]
         try:
             print("[처리] 데이터를 '억원' 단위로 변환합니다 ( / 100,000,000 )")
             df_final_agg = (df_quarterly / 100_000_000).round(0).astype(int)
@@ -242,6 +287,7 @@ def process_income_statement(fs, target_accounts):
             print(f" [경고] '억원' 단위 변환 중 오류 발생: {e}")
             df_final_agg = df_quarterly
         
+        # [핵심 9: 컬럼명(YYYY.Q) 기준으로 오름차순 정렬]
         df_final_agg.sort_index(axis=1, inplace=True)
         
         print("\n[!!! 성공 !!!] 4분기 포함, 원하는 3가지 항목을 성공적으로 추출 및 정리했습니다.")
@@ -286,10 +332,13 @@ def process_single_corporation(corp_name, corp_list, start_date):
 
     fs = extract_financial_statements(target_corp_code, start_date)
     if fs is None:
+        print(f" [알림] '{corp_name}'의 재무제표(fs) 객체를 추출하지 못했습니다.")
         return 
 
-    df_processed = process_income_statement(fs, TARGET_ACCOUNTS)
+    df_processed = process_income_statement(fs, TARGET_ACCOUNTS, corp_name_for_debug=corp_name)
+    
     if df_processed is None:
+        print(f" [알림] '{corp_name}'의 손익계산서 데이터를 처리하지 못했습니다.")
         return 
 
     print(f"\n--- [최종 결과: {corp_name} (단위: 억원)] ---")
@@ -301,7 +350,7 @@ def main():
     """
     전체 데이터 수집 및 처리 파이프라인을 실행합니다.
     """
-    TARGET_CORP_NAMES = ["삼성전자", "SK하이닉스"]
+    TARGET_CORP_NAMES = ["삼성전자", "SK하이닉스", "LG화학", "현대자동차", "카카오"]
     
     if not setup_api():
         return 

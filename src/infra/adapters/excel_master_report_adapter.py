@@ -150,7 +150,22 @@ class ExcelMasterAdapter(ExcelMasterReportPort):
         # --- 5. [V15] 피벗 테이블 계산 (파일 쓰기 전) ---
         print(f"    -> [Adapter] '{pivot_sheet_name}' 피벗 테이블 계산 시작...")
         pivot_df_sorted = pd.DataFrame()
-        
+        # 피벗을 만들기 전, '금액' 컬럼을 숫자로 강제 변환합니다.
+        # (기존 데이터가 "1,234,000" 처럼 문자열로 로드되었을 경우 대비)
+        if not full_data_df.empty:
+            try:
+                # 1. 쉼표 등 불필요한 문자 제거 (숫자, 소수점, 마이너스 부호 외)
+                full_data_df['금액'] = full_data_df['금액'].astype(str).str.replace(r'[^0-9.-]', '', regex=True)
+                # 2. 빈 문자열은 0으로
+                full_data_df['금액'] = full_data_df['금액'].replace('', 0)
+                # 3. 숫자로 변환 (오류 시 NaN)
+                full_data_df['금액'] = pd.to_numeric(full_data_df['금액'], errors='coerce')
+                # 4. NaN을 0으로 (결측치 방지)
+                full_data_df['금액'] = full_data_df['금액'].fillna(0)
+            except Exception as clean_e:
+                print(f"    -> [Adapter] 🚨 '금액' 컬럼 숫자 변환 중 오류: {clean_e}")
+                # (오류가 나도 일단 진행 시도)
+        # --- [수정 코드 끝] ---
         if full_data_df.empty:
              print(f"    -> [Adapter] ⚠️ '{sheet_name}' 원본 데이터가 비어있어 피벗을 생성할 수 없습니다.")
         else:

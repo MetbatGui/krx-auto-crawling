@@ -2,9 +2,8 @@ import os
 import datetime
 from dotenv import load_dotenv
 import dart_fss as dart
-# [!!!] NotFoundConsolidated import 제거
 import pandas as pd
-# [!!!] asyncio import 제거
+import asyncio
 
 # --- 전역 설정값 (Constants) ---
 
@@ -26,30 +25,25 @@ COLLECTED_LIST_FILE = os.path.join(RAW_DATA_DIR, "collected_list.csv")
 FAILED_LIST_FILE = os.path.join(RAW_DATA_DIR, "failed_list.csv")
 """수집에 실패한 기업 목록 로그 파일"""
 
-# [!!!] 재시도 관련 상수 제거됨
 
 def setup_api():
     """(동기) DART API 키를 .env 파일에서 로드하고 라이브러리에 설정합니다.
-    (실행 위치의 .env 파일을 사용)
 
     Returns:
         bool: API 키 설정 성공 시 True, 실패 시 False.
     """
     print("환경 변수 로드 및 API 키 설정...")
-    
+    load_dotenv()
+    API_KEY = os.environ.get("DART_API_KEY")
+
+    if API_KEY is None:
+        print(" [오류] DART_API_KEY가 환경 변수에 설정되지 않았습니다.")
+        return False
+
     try:
-        load_dotenv()
-
-        API_KEY = os.environ.get("DART_API_KEY")
-
-        if API_KEY is None:
-            print(" [오류] DART_API_KEY가 환경 변수에 설정되지 않았습니다.")
-            return False
-
         dart.set_api_key(api_key=API_KEY)
         print(" [성공] DART API 키 설정 완료.")
         return True
-        
     except Exception as e:
         print(f" [오류] DART API 키 설정 오류: {e}")
         return False
@@ -73,16 +67,13 @@ def get_corporate_list():
         raise
 
 def load_stock_list(filepath):
-    """(동기) 지정된 경로의 CSV 파일에서 처리할 기업명 리스트를 로드합니다.
+    """(동기) 지정된 경로의 CSV 파일에서 기업명 리스트를 로드합니다.
 
     Args:
         filepath (str): 'stock_list.csv' 파일의 전체 경로.
 
     Returns:
-        list: 기업명 문자열의 리스트 (예: ['삼성전자', 'SK하이닉스']).
-
-    Raises:
-        FileNotFoundError: stock_list.csv 파일을 찾을 수 없을 때 발생합니다.
+        list: 기업명 문자열의 리스트.
     """
     print(f"\n--- 기업 목록 파일 로드 ---")
     print(f" [처리] '{filepath}'에서 기업 목록을 읽습니다.")
@@ -92,7 +83,7 @@ def load_stock_list(filepath):
         raise FileNotFoundError(f"입력 파일 없음: {filepath}")
 
     try:
-        # [!!!] utf-8-sig 인코딩 사용
+        # [!!!] 이전에 수정한 'utf-8-sig'를 반영
         df = pd.read_csv(filepath, header=None, encoding='utf-8-sig')
         stock_names = df.iloc[:, 0].dropna().unique().tolist()
         
@@ -105,31 +96,6 @@ def load_stock_list(filepath):
     except Exception as e:
         print(f" [!!! 오류 !!!] '{filepath}' 파일 로드 중 오류 발생: {e}")
         raise
-
-def load_log_list(filepath):
-    """(동기) 로그 CSV 파일에서 'corp_name' 컬럼을 읽어 set으로 반환합니다.
-
-    Args:
-        filepath (str): 'collected_list.csv' 파일 경로.
-
-    Returns:
-        set: 수집에 성공한 기업명 set.
-    """
-    print(f" [로그] '{filepath}'에서 기존 목록을 읽습니다...")
-    if not os.path.exists(filepath):
-        print(f" [로그] 파일이 없어, 새로 시작합니다.")
-        return set()
-    try:
-        df = pd.read_csv(filepath, encoding='utf-8-sig')
-        if 'corp_name' not in df.columns:
-            print(f" [로그] '{filepath}'에 'corp_name' 컬럼이 없습니다.")
-            return set()
-        return set(df['corp_name'].dropna().unique())
-    except Exception as e:
-        print(f" [!!!] '{filepath}' 로그 파일 읽기 실패: {e}. (무시하고 진행)")
-        return set()
-
-# [!!!] 재시도 관련 함수(load_and_filter_failed_list) 제거됨
 
 def log_to_csv(filepath, data_dict):
     """(동기) 수집 결과를 CSV 파일에 한 줄 추가(append)합니다.
@@ -145,9 +111,10 @@ def log_to_csv(filepath, data_dict):
     except Exception as e:
         print(f" [!!! 로깅 오류 !!!] '{filepath}' 파일 쓰기 실패: {e}")
 
-def find_and_save_fs(corp_list, corp_name, start_date, save_dir):
-    """(동기) 기업명을 받아 고유번호를 찾고, '연결' fs를 추출하여 엑셀로 저장합니다.
-    (사용자 원본 코드 베이스)
+# [!!!] 이 함수는 동기(Blocking) 함수입니다.
+def find_and_save_fs_sync(corp_list, corp_name, start_date, save_dir):
+    """(동기) 기업명을 받아 고유번호를 찾고, fs를 추출하여 엑셀로 저장합니다.
+    (asyncio.to_thread로 호출될 대상 함수)
 
     Args:
         corp_list (dart_fss.corp.CorpList): DART 전체 기업 목록 객체.
@@ -167,14 +134,14 @@ def find_and_save_fs(corp_list, corp_name, start_date, save_dir):
     target_corp_code = corp_search[0].corp_code
 
     # 2. 재무제표(fs) 추출 (Blocking I/O)
-    print(f" [{corp_name}] 2. '연결' 재무제표(fs) 추출 시도...")
+    print(f" [{corp_name}] 2. 재무제표(fs) 추출 시작 (대상: {target_corp_code})...")
     fs = dart.fs.extract(
         corp_code=target_corp_code,
         bgn_de=start_date,
         report_tp='quarter',
-        separate=False, # '연결'만 시도
+        separate=None,  # [!!!] 핵심 수정: False -> None (연결/별도 자동 탐지)
         dataset='xbrl',
-        progressbar=True 
+        progressbar=False
     )
     
     if fs is None:
@@ -182,42 +149,59 @@ def find_and_save_fs(corp_list, corp_name, start_date, save_dir):
     
     # 3. 엑셀 파일(fs.save) 저장 (Blocking I/O)
     print(f" [{corp_name}] 3. 원본 엑셀 파일(fs.save) 저장 시작...")
-    filename = f"{corp_name}_RAW_FS.xlsx"
+    filename = f"{corp_name}_RAW_FS.xlsx" # .xlsx 확장자 명시
     fs.save(filename=filename, path=save_dir)
     print(f"       -> [{corp_name}] 저장 완료: {os.path.join(save_dir, filename)}")
 
+# [!!!] 이 함수는 비동기(async def) 함수입니다. (수정됨)
+async def process_single_corporation_async(corp_name, corp_list, start_date, semaphore): # [!!!] semaphore 인수 추가
+    """(비동기) 동기 함수인 find_and_save_fs_sync를 별도 스레드에서 실행합니다.
+    Semaphore를 통해 동시 실행 수를 제어합니다.
 
-# [!!!] 이 함수가 수정되었습니다. (단순화된 로직)
-def main():
+    Args:
+        corp_name (str): 처리할 기업명.
+        corp_list (dart_fss.corp.CorpList): DART 전체 기업 목록 객체.
+        start_date (str): 데이터 조회 시작일 (YYYYMMDD).
+        semaphore (asyncio.Semaphore): 동시 실행 수를 제어할 세마포 객체.
+
+    Returns:
+        str: 성공한 기업명.
+    
+    Raises:
+        Exception: 동기 함수 실행 중 발생한 모든 오류.
     """
-    워크플로우 1~5를 동기(순차적)로 실행하는 메인 지휘 함수.
-    (전체 목록 - 성공 목록 = 재조사 목록)
+    print(f"[{corp_name}] 작업 대기 중...")
+    
+    # [!!!] 핵심: 작업 실행 전 세마포 획득을 기다림
+    async with semaphore:
+        print(f"[{corp_name}] 작업 시작 (동시 실행 제어 중)...")
+        
+        # [!!!] 핵심: I/O가 발생하는 동기 함수를 스레드에서 실행
+        await asyncio.to_thread(
+            find_and_save_fs_sync,
+            corp_list,
+            corp_name,
+            start_date,
+            RAW_DATA_DIR
+        )
+    
+    return corp_name # 성공 시 기업명 반환
+
+
+# [!!!] 이 함수는 비동기(async def) 함수입니다.
+async def main():
     """
-    print("--- DART 원본 재무제표(fs) 동기 수집 스크립트 (재조사) ---")
+    워크플로우 1~5를 비동기 병렬로 실행하는 메인 지휘 함수.
+    (as_completed를 사용하여 실시간 로깅)
+    """
+    print("--- DART 원본 재무제표(fs) 병렬 수집 스크립트 시작 ---")
     
     if not setup_api():
         return
-    
     try:
         corp_list = get_corporate_list()
+        stock_names = load_stock_list(STOCK_LIST_FILE)
         os.makedirs(RAW_DATA_DIR, exist_ok=True)
-        
-        # 1. 기존 성공 목록 로드 (건너뛰기용)
-        collected_set = load_log_list(COLLECTED_LIST_FILE)
-        
-        # 2. 마스터 목록 로드
-        master_list = load_stock_list(STOCK_LIST_FILE)
-        
-        # [!!!] 3. 핵심 수정: 최종 작업 목록 = (마스터 목록) - (성공 목록)
-        master_set = set(master_list)
-        
-        final_stock_set = master_set - collected_set
-        final_stock_list = sorted(list(final_stock_set))
-
-        if not final_stock_list:
-            print("\n[알림] 새로 수집할 기업이 없습니다. (모든 기업 수집 완료)")
-            return
-
     except Exception as e:
         print(f"\n[!!! 치명적 오류 !!!] 초기 설정 실패: {e}")
         return
@@ -225,45 +209,64 @@ def main():
     start_year = datetime.date.today().year - YEARS_TO_COLLECT
     start_date = f"{start_year}0101"
     
+    CONCURRENT_LIMIT = 10 
+    semaphore = asyncio.Semaphore(CONCURRENT_LIMIT)
+    print(f"\n--- 동시 작업 수를 {CONCURRENT_LIMIT}개로 제한합니다. ---")
+
+    tasks = []
+    
+    # [!!!] 핵심 수정 1: Task를 생성할 때 기업명을 알 수 있도록 딕셔너리 사용
+    # {비동기 작업(Task): 기업명}
+    task_to_corp_name = {}
+    
+    for corp_name in stock_names:
+        task = asyncio.create_task(
+            process_single_corporation_async(corp_name, corp_list, start_date, semaphore)
+        )
+        tasks.append(task)
+        task_to_corp_name[task] = corp_name # 작업 객체와 기업명 매핑
+
+    print(f"\n--- 총 {len(tasks)}개 기업의 데이터 수집을 병렬로 시작합니다... ---")
+    
     success_count = 0
     fail_count = 0
-    
-    len_corps = len(final_stock_list)
-    print(f"\n--- 총 {len(master_list)}개 중 {len(collected_set)}개 수집 완료 ---")
-    print(f"--- {len_corps}개 기업의 데이터 수집을 순차적으로 시작합니다... ---")
 
-    for index, corp_name in enumerate(final_stock_list, start=1):
-        print(f"\n=========================================")
-        print(f"[{index}/{len_corps}: {corp_name}] 처리를 시작합니다...")
+    # [!!!] 핵심 수정 2: asyncio.gather -> asyncio.as_completed
+    # tasks 리스트의 작업들이 완료되는 순서대로 즉시 처리
+    for task in asyncio.as_completed(tasks):
+        corp_name = task_to_corp_name[task] # 완료된 작업의 기업명 찾기
         
         try:
-            find_and_save_fs(corp_list, corp_name, start_date, RAW_DATA_DIR)
+            # 작업의 실제 결과(성공 시 기업명, 실패 시 예외)를 가져옴
+            result = await task 
             
+            # 4. 성공 로그 기록 (실시간)
             log_to_csv(COLLECTED_LIST_FILE, {
-                'corp_name': corp_name, 
+                'corp_name': result, # result가 성공한 기업명(corp_name)임
                 'collected_at': datetime.datetime.now().isoformat()
             })
-            print(f" [성공] '{corp_name}' 처리 완료.")
+            print(f" [성공] '{result}' 처리 완료.")
             success_count += 1
             
         except Exception as e:
+            # 5. 실패 로그 기록 (실시간)
             error_message = str(e).replace('\n', ' ')
             log_to_csv(FAILED_LIST_FILE, {
-                'corp_name': corp_name,
+                'corp_name': corp_name, # 실패했으므로 매핑된 기업명 사용
                 'error_message': error_message,
                 'failed_at': datetime.datetime.now().isoformat()
             })
             print(f" [실패] '{corp_name}' 처리 중 오류 발생: {error_message}")
             fail_count += 1
-            continue 
 
     print("\n=========================================")
     print("--- 모든 작업 완료 ---")
     print("\n--- 요약 ---")
-    print(f"  이번 실행 성공: {success_count} 건")
-    print(f"  이번 실행 실패: {fail_count} 건")
+    print(f"  성공: {success_count} 건")
+    print(f"  실패: {fail_count} 건")
     print(f"  성공 로그: {COLLECTED_LIST_FILE}")
     print(f"  실패 로그: {FAILED_LIST_FILE}")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
+    print("\n--- 스크립트 종료 ---\n")  

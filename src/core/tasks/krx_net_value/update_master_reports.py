@@ -52,6 +52,12 @@ class UpdateMasterReportsTask(Task):
         print(f"--- [Task] {self.__class__.__name__} 시작 (Update Master Reports) ---")
 
         date_str = context.get('date_str')
+        if date_str is None:
+            print("  -> 🚨 date_str이 제공되지 않았습니다.")
+            return UpdateMasterReportsTaskOutput(
+                date_str=None, status='error', message='date_str 누락'
+            )
+
         processed_dfs_dict = context.get('processed_dfs_dict')
         status = context.get('status')
 

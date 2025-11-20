@@ -18,7 +18,7 @@ DOWNLOAD_URL = os.getenv('KRX_DOWNLOAD_URL')
 class KrxHttpAdapter(KrxDataPort):
     """
     KrxDataPort의 '구현체(Adapter)'입니다.
-    cloudscraper와 HTTP(OTP)를 사용하여 KRX에서
+    cloudscraper와 HTTP(OTP)를 사용하여 KRX에서a
     실제 데이터를 가져옵니다.
     
     (기존 DailyNetValueCrawler의 Docstring과 동일)

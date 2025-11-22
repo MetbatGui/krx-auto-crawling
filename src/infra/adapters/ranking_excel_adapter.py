@@ -12,25 +12,13 @@ from openpyxl.styles import PatternFill
 from openpyxl.styles.fills import FILL_NONE
 
 # 포트 임포트 (의존성)
-from core.ports.excel_ranking_report_port import ExcelRankingReportPort
+from core.ports.ranking_report_port import RankingReportPort
+from core.domain.models import KrxData
 
-class ExcelRankingReportAdapter(ExcelRankingReportPort):
+class RankingExcelAdapter(RankingReportPort):
     """
-    'ExcelRankingReportPort'의 구현체(Adapter).
-
-    [V5 - 최종 완성본]
-    'output' 폴더의 '2025일별수급순위정리표.xlsx' 파일을 열어,
-    마지막 시트를 복사 -> 헤더 수정 -> 배경 초기화 -> 데이터 삽입 ->
-    공통 항목 서식 적용 -> 자동 너비 맞춤 적용 후 저장합니다.
-    (모든 단계를 작은 함수로 분리)
-
-    # 엑셀 시트 레이아웃 가정 (필수):
-    - A5: 날짜, B5: 요일
-    - 데이터 영역: D5:L24
-    - KOSPI 외국인: D5:D24 (종목명), E5:E24 (금액)
-    - KOSPI 기관:   F5:F24 (종목명), G5:G24 (금액)
-    - KOSDAQ 외국인: I5:I24 (종목명), J5:J24 (금액)
-    - KOSDAQ 기관:   K5:K24 (종목명), L5:L24 (금액)
+    'RankingReportPort'의 구현체(Adapter).
+    'output' 폴더의 '2025일별수급순위정리표.xlsx' 파일을 업데이트합니다.
     """
 
     # --- 상수 정의 ---
@@ -51,29 +39,109 @@ class ExcelRankingReportAdapter(ExcelRankingReportPort):
             os.makedirs(self.output_path)
         self.file_path = os.path.join(self.output_path, file_name)
         self.korean_weekdays = ["월", "화", "수", "목", "금", "토", "일"]
-        print(f"     -> [Adapter] ExcelRankingReportAdapter 초기화 (파일: {self.file_path})")
+        print(f"     -> [Adapter:RankingExcel] 초기화 (파일: {self.file_path})")
+
+    def update_ranking_report(self, data_list: List[KrxData]) -> None:
+        """
+        수집된 데이터를 기반으로 수급 순위표를 업데이트합니다.
+        """
+        if not data_list:
+            print("  [Adapter:RankingExcel] ⚠️ 데이터가 없어 순위표 업데이트를 건너뜁니다.")
+            return
+
+        # 1. 데이터 변환 (List[KrxData] -> Dict[str, DataFrame])
+        data_map = {item.key: item.data for item in data_list if not item.data.empty}
+        
+        # 2. 날짜 추출 (첫 번째 데이터 기준)
+        first_item = data_list[0]
+        report_date = datetime.datetime.strptime(first_item.date_str, '%Y%m%d').date()
+
+        # 3. 공통 종목 계산
+        common_stocks = self._calculate_common_stocks(data_map)
+
+        # 4. 리포트 업데이트 실행
+        self._execute_update(report_date, data_map, common_stocks)
+
+    def _calculate_common_stocks(self, data_map: Dict[str, pd.DataFrame]) -> Dict[str, Set[str]]:
+        """시장별 외국인/기관 공통 매수 종목을 계산합니다."""
+        common_stocks = {}
+        markets = ['KOSPI', 'KOSDAQ']
+        
+        for market in markets:
+            foreigner_key = f"{market}_foreigner"
+            inst_key = f"{market}_institutions"
+            
+            df_foreign = data_map.get(foreigner_key)
+            df_inst = data_map.get(inst_key)
+            
+            if df_foreign is not None and df_inst is not None:
+                # 상위 N개 종목 추출
+                top_foreign = set(df_foreign.head(self.TOP_N_TO_PASTE)['종목명'])
+                top_inst = set(df_inst.head(self.TOP_N_TO_PASTE)['종목명'])
+                
+                # 교집합 계산
+                common = top_foreign.intersection(top_inst)
+                common_stocks[market] = common
+                print(f"     -> [Adapter:RankingExcel] {market} 공통 종목({len(common)}개): {common}")
+            else:
+                common_stocks[market] = set()
+                
+        return common_stocks
+
+    def _execute_update(
+        self,
+        report_date: datetime.date,
+        data_to_paste: Dict[str, pd.DataFrame],
+        common_stocks: Dict[str, Set[str]]
+    ) -> bool:
+        
+        print(f"     -> [Adapter:RankingExcel] 일별 수급 순위표 업데이트 시작...")
+
+        book = self._load_workbook()
+        if book is None: return False
+
+        source_sheet = self._find_source_sheet(book)
+        if source_sheet is None: return False
+
+        try:
+            new_sheet = self._copy_and_prepare_sheet(book, source_sheet, report_date)
+        except Exception as e:
+             print(f"     -> [Adapter:RankingExcel] 🚨 시트 복사/준비 중 오류 발생: {e}")
+             return False
+
+        try:
+             self._update_sheet_headers(new_sheet, report_date)
+        except Exception as e:
+            print(f"     -> [Adapter:RankingExcel] 🚨 헤더 업데이트 중 오류 발생: {e}")
+            return False
+
+        try:
+            self._paste_and_format_data(new_sheet, data_to_paste, common_stocks)
+        except Exception as e:
+            print(f"     -> [Adapter:RankingExcel] 🚨 데이터/서식 적용 중 오류 발생: {e}")
+            return False
+
+        return self._save_workbook(book)
 
     # --- 워크북/시트 처리 함수 ---
     def _load_workbook(self) -> Optional[Workbook]:
         """엑셀 파일을 로드합니다."""
         try:
             book = openpyxl.load_workbook(self.file_path)
-            print(f"     -> [Adapter] 파일 로드 성공: {self.file_path}")
             return book
         except FileNotFoundError:
-            print(f"     -> [Adapter] 🚨 파일을 찾을 수 없습니다: {self.file_path}")
+            print(f"     -> [Adapter:RankingExcel] 🚨 파일을 찾을 수 없습니다: {self.file_path}")
             return None
         except Exception as e:
-            print(f"     -> [Adapter] 🚨 파일 로드 중 오류 발생: {e}")
+            print(f"     -> [Adapter:RankingExcel] 🚨 파일 로드 중 오류 발생: {e}")
             return None
 
     def _find_source_sheet(self, book: Workbook) -> Optional[Worksheet]:
         """워크북의 마지막 시트를 템플릿 원본으로 찾아 반환합니다."""
         if not book.sheetnames:
-            print(f"     -> [Adapter] 🚨 파일에 시트가 하나도 없습니다.")
+            print(f"     -> [Adapter:RankingExcel] 🚨 파일에 시트가 하나도 없습니다.")
             return None
         source_sheet = book.worksheets[-1]
-        print(f"     -> [Adapter] [Task 1] 원본 템플릿 시트 '{source_sheet.title}' 찾기 성공.")
         return source_sheet
 
     def _copy_and_prepare_sheet(
@@ -85,11 +153,10 @@ class ExcelRankingReportAdapter(ExcelRankingReportPort):
         """시트를 복사하고, 이름 설정, 중복 제거합니다."""
         new_sheet_name = report_date.strftime('%m%d')
         if new_sheet_name in book.sheetnames:
-            print(f"     -> [Adapter] ⚠️ 기존 '{new_sheet_name}' 시트를 삭제합니다.")
+            print(f"     -> [Adapter:RankingExcel] ⚠️ 기존 '{new_sheet_name}' 시트를 삭제합니다.")
             book.remove(book[new_sheet_name])
         new_sheet = book.copy_worksheet(source_sheet)
         new_sheet.title = new_sheet_name
-        print(f"     -> [Adapter] [Task 2] 새 시트 '{new_sheet_name}' 생성 완료.")
         # 셀 크기 복사 로직 없음 (V3.4)
         return new_sheet
 
@@ -97,15 +164,12 @@ class ExcelRankingReportAdapter(ExcelRankingReportPort):
         """새 시트의 A5(날짜)와 B5(요일) 셀을 업데이트합니다."""
         day_str = f"{report_date.day} 日"
         sheet['A5'] = day_str
-        print(f"     -> [Adapter] [Task 3] A5 셀 수정 완료: {day_str}")
         weekday_str = self.korean_weekdays[report_date.weekday()]
         sheet['B5'] = weekday_str
-        print(f"     -> [Adapter] [Task 4] B5 셀 수정 완료: {weekday_str}")
 
     # --- 데이터 처리 및 서식 함수 ---
     def _clear_data_area(self, ws: Worksheet):
         """지정된 데이터 영역의 값과 배경 서식을 초기화합니다."""
-        print(f"     -> [Adapter] ... 데이터 영역 ({self.DATA_RANGE_TO_CLEAR}) 초기화 중...")
         for row in ws[self.DATA_RANGE_TO_CLEAR]:
             for cell in row:
                 cell.value = None
@@ -169,7 +233,6 @@ class ExcelRankingReportAdapter(ExcelRankingReportPort):
 
     def _apply_autofit(self, ws: Worksheet):
         """지정된 열에 자동 너비 맞춤(bestFit)을 적용합니다."""
-        print(f"     -> [Adapter] ... 자동 너비 맞춤 적용 중 ({', '.join(self.COLUMNS_TO_AUTOFIT)} 열)...")
         for col_letter in self.COLUMNS_TO_AUTOFIT:
             ws.column_dimensions[col_letter].bestFit = True
 
@@ -189,7 +252,6 @@ class ExcelRankingReportAdapter(ExcelRankingReportPort):
         for key, layout in self.LAYOUT_MAP.items():
             df = all_data.get(key)
             if df is None:
-                print(f"     -> [Adapter] ⚠️ {key} 데이터가 없어 건너<0xEB><0x9B><0x81>니다.")
                 continue
 
             market = layout['market']
@@ -202,8 +264,6 @@ class ExcelRankingReportAdapter(ExcelRankingReportPort):
             # 2.3 남은 행 정리
             self._clear_remaining_rows(ws, layout, pasted_count)
 
-            print(f"     -> [Adapter] ... {key} 영역 ({pasted_count}개) 처리 완료.")
-
         # 3. 자동 너비 맞춤 적용
         self._apply_autofit(ws)
 
@@ -212,48 +272,8 @@ class ExcelRankingReportAdapter(ExcelRankingReportPort):
         """워크북을 저장합니다."""
         try:
             book.save(self.file_path)
-            print(f"     -> [Adapter] ✅ {self.file_path} 파일 저장 완료.")
+            print(f"     -> [Adapter:RankingExcel] ✅ {self.file_path} 저장 완료.")
             return True
         except Exception as e:
-            print(f"     -> [Adapter] 🚨 파일 저장 중 오류 발생: {e}")
+            print(f"     -> [Adapter:RankingExcel] 🚨 파일 저장 중 오류 발생: {e}")
             return False
-
-    # --- 메인 실행 함수 (Port 구현) ---
-    def update_ranking_report(
-        self,
-        report_date: datetime.date,
-        previous_date: datetime.date, # (사용 안 함)
-        data_to_paste: Dict[str, pd.DataFrame],
-        common_stocks: Dict[str, Set[str]]
-    ) -> bool:
-        """
-        [V5] 전체 워크플로우 오케스트레이션:
-        로드 -> 원본 찾기 -> 복사/준비 -> 헤더 업데이트 -> **데이터/서식/Autofit 적용** -> 저장
-        """
-        print(f"     -> [Adapter] 일별 수급 순위표 업데이트 시작 (파일: {self.file_path})")
-
-        book = self._load_workbook()
-        if book is None: return False
-
-        source_sheet = self._find_source_sheet(book)
-        if source_sheet is None: return False
-
-        try:
-            new_sheet = self._copy_and_prepare_sheet(book, source_sheet, report_date)
-        except Exception as e:
-             print(f"     -> [Adapter] 🚨 시트 복사/준비 중 오류 발생: {e}")
-             return False
-
-        try:
-             self._update_sheet_headers(new_sheet, report_date)
-        except Exception as e:
-            print(f"     -> [Adapter] 🚨 헤더 업데이트 중 오류 발생: {e}")
-            return False
-
-        try:
-            self._paste_and_format_data(new_sheet, data_to_paste, common_stocks)
-        except Exception as e:
-            print(f"     -> [Adapter] 🚨 데이터/서식 적용 중 오류 발생: {e}")
-            return False
-
-        return self._save_workbook(book)

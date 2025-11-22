@@ -1,6 +1,6 @@
 import pandas as pd
 import datetime
-from typing import Dict
+from typing import Dict, List
 import os
 
 # (pip install openpyxl)
@@ -10,19 +10,13 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 # [V16-V21] 서식 적용을 위한 Font, PatternFill 임포트
 from openpyxl.styles import Font, PatternFill
 
-from core.ports.excel_master_report_port import ExcelMasterReportPort
+from core.ports.master_report_port import MasterReportPort
+from core.domain.models import KrxData
 
-class ExcelMasterAdapter(ExcelMasterReportPort):
+class MasterExcelAdapter(MasterReportPort):
     """
-    ExcelMasterReportPort의 구현체(Adapter).
-    
-    [최종 로직 V22 - 빠른 건너뛰기]
-    1. (V22) 모든 작업 시작 전, 파일 존재 여부와 
-       'pivot_sheet_name' 존재 여부를 "먼저" 확인하고,
-       시트가 이미 있으면 [빠른 건너뛰기]로 즉시 True를 반환.
-    2. (V15) I/O 최적화 로직 유지
-    3. (V19) 시트 순서 보장
-    4. (V20-V21) 모든 서식 적용
+    MasterReportPort의 구현체(Adapter).
+    월별 누적 및 피벗 테이블 생성을 담당합니다.
     """
 
     def __init__(self, base_path: str, file_name_prefix: str = "2025"):
@@ -40,7 +34,23 @@ class ExcelMasterAdapter(ExcelMasterReportPort):
             'KOSDAQ_institutions': f'코스닥기관순매수도{year_suffix}.xlsx',
         }
 
-    def update_report(
+    def update_master_reports(self, data_list: List[KrxData]) -> None:
+        """
+        수집된 데이터를 마스터 파일에 누적하고 피벗 테이블을 갱신합니다.
+        """
+        for item in data_list:
+            if item.data.empty:
+                print(f"  [Adapter:MasterExcel] ⚠️ {item.key} 데이터가 비어있어 건너뜁니다.")
+                continue
+            
+            try:
+                # 날짜 문자열을 date 객체로 변환
+                report_date = datetime.datetime.strptime(item.date_str, '%Y%m%d').date()
+                self._update_single_report(item.key, item.data, report_date)
+            except Exception as e:
+                print(f"  [Adapter:MasterExcel] 🚨 {item.key} 업데이트 실패: {e}")
+
+    def _update_single_report(
         self,
         report_key: str,
         daily_data: pd.DataFrame,
@@ -49,7 +59,7 @@ class ExcelMasterAdapter(ExcelMasterReportPort):
         
         file_name = self.file_map.get(report_key)
         if not file_name:
-            print(f"    -> [Adapter] 🚨 '{report_key}'에 해당하는 파일명을 모릅니다.")
+            print(f"    -> [Adapter:MasterExcel] 🚨 '{report_key}'에 해당하는 파일명을 모릅니다.")
             return False
 
         file_path = os.path.join(self.master_path, file_name)
@@ -61,8 +71,7 @@ class ExcelMasterAdapter(ExcelMasterReportPort):
         date_str = report_date.strftime('%Y%m%d')
         date_int = int(date_str) 
 
-        print(f"    -> [Adapter] {file_name} 파일 업데이트 시작...")
-        print(f"         (1단계: '{sheet_name}' 누적, 2단계: '{pivot_sheet_name}' 피벗 생성)")
+        print(f"    -> [Adapter:MasterExcel] {file_name} 파일 업데이트 시작...")
 
         # --- [V22] 빠른 건너뛰기 로직 ---
         # 1. 파일을 열기 전에, 파일이 존재하는지 확인
@@ -76,12 +85,12 @@ class ExcelMasterAdapter(ExcelMasterReportPort):
                 
                 # 3. 오늘 날짜의 피벗 시트가 이미 있는지 확인
                 if pivot_sheet_name in sheet_names:
-                    print(f"    -> [Adapter] ⚠️ '{pivot_sheet_name}' 피벗 시트가 이미 존재하여 [빠른 건너뛰기]를 실행합니다.")
+                    print(f"    -> [Adapter:MasterExcel] ⚠️ '{pivot_sheet_name}' 피벗 시트가 이미 존재하여 [빠른 건너뛰기]를 실행합니다.")
                     return True # True를 반환하여 파이프라인 계속 진행
             except Exception as e:
                 # (예: 파일이 깨졌거나, zip 파일이 아닌 경우)
-                print(f"    -> [Adapter] ⚠️ 빠른 건너뛰기 검사 중 파일({file_name})을 읽을 수 없습니다: {e}")
-                print(f"    -> [Adapter] ⚠️ (파일을 덮어쓰기 위해, 전체 로직을 계속 진행합니다.)")
+                print(f"    -> [Adapter:MasterExcel] ⚠️ 빠른 건너뛰기 검사 중 파일({file_name})을 읽을 수 없습니다: {e}")
+                print(f"    -> [Adapter:MasterExcel] ⚠️ (파일을 덮어쓰기 위해, 전체 로직을 계속 진행합니다.)")
                 pass # 에러가 났으므로, 정상 로직을 태워서 덮어쓰도록 유도
         # --- [V22] 빠른 건너뛰기 끝 ---
 
@@ -100,7 +109,7 @@ class ExcelMasterAdapter(ExcelMasterReportPort):
             new_data_formatted = new_data_formatted[['일자', '종목', '금액']]
 
         except KeyError as e:
-            print(f"    -> [Adapter] 🚨 'daily_data'에 필요한 컬럼이 없습니다: {e}")
+            print(f"    -> [Adapter:MasterExcel] 🚨 'daily_data'에 필요한 컬럼이 없습니다: {e}")
             return False
 
         # --- 2. [V15] 기존 데이터 읽기 (Pandas, 중복 검사용 - 1회 읽기) ---
@@ -120,35 +129,35 @@ class ExcelMasterAdapter(ExcelMasterReportPort):
                 if all(col in read_df.columns for col in read_df.columns):
                         existing_df = read_df[excel_columns].copy()
                 else:
-                    print(f"    -> [Adapter] ⚠️ {sheet_name} 시트 헤더가 깨져 읽을 수 없습니다.")
+                    print(f"    -> [Adapter:MasterExcel] ⚠️ {sheet_name} 시트 헤더가 깨져 읽을 수 없습니다.")
                     existing_df = pd.DataFrame(columns=excel_columns)
-            print(f"    -> [Adapter] 기존 '{sheet_name}' 시트 데이터 ({len(existing_df)}줄) 로드 완료.")
+            print(f"    -> [Adapter:MasterExcel] 기존 '{sheet_name}' 시트 데이터 ({len(existing_df)}줄) 로드 완료.")
         except FileNotFoundError:
-            print(f"    -> [Adapter] ⚠️ 새 파일 '{file_name}'이 생성됩니다.")
+            print(f"    -> [Adapter:MasterExcel] ⚠️ 새 파일 '{file_name}'이 생성됩니다.")
         except (ValueError, KeyError) as e:
-            print(f"    -> [Adapter] ⚠️ 파일은 있으나 '{sheet_name}' 시트가 없어 새로 생성합니다.")
+            print(f"    -> [Adapter:MasterExcel] ⚠️ 파일은 있으나 '{sheet_name}' 시트가 없어 새로 생성합니다.")
         except Exception as e:
-            print(f"    -> [Adapter] 🚨 파일 로드 중 예상치 못한 오류: {e}")
+            print(f"    -> [Adapter:MasterExcel] 🚨 파일 로드 중 예상치 못한 오류: {e}")
             return False
 
         # --- 3. [V13 수정] 중복 날짜 검사 ---
         if date_int in existing_df['일자'].values: 
-            print(f"    -> [Adapter] ⚠️ {date_int} 데이터가 '{sheet_name}'에 이미 존재하여 무시합니다.")
+            print(f"    -> [Adapter:MasterExcel] ⚠️ {date_int} 데이터가 '{sheet_name}'에 이미 존재하여 무시합니다.")
             new_data_formatted = pd.DataFrame()
             print("         (데이터 추가는 건너뛰고, 피벗 테이블 생성(2단계)은 진행합니다.)")
         
         if not new_data_formatted.empty:
-            print(f"    -> [Adapter] 새 데이터 ({len(new_data_formatted)}줄) 추가 준비...")
+            print(f"    -> [Adapter:MasterExcel] 새 데이터 ({len(new_data_formatted)}줄) 추가 준비...")
 
         # --- 4. [V15] 피벗 생성을 위해 메모리에서 전체 데이터 준비 ---
-        print(f"    -> [Adapter] 메모리에서 피벗용 전체 데이터 준비...")
+        print(f"    -> [Adapter:MasterExcel] 메모리에서 피벗용 전체 데이터 준비...")
         if not new_data_formatted.empty:
             full_data_df = pd.concat([existing_df, new_data_formatted], ignore_index=True)
         else:
             full_data_df = existing_df.copy()
 
         # --- 5. [V15] 피벗 테이블 계산 (파일 쓰기 전) ---
-        print(f"    -> [Adapter] '{pivot_sheet_name}' 피벗 테이블 계산 시작...")
+        print(f"    -> [Adapter:MasterExcel] '{pivot_sheet_name}' 피벗 테이블 계산 시작...")
         pivot_df_sorted = pd.DataFrame()
         # 피벗을 만들기 전, '금액' 컬럼을 숫자로 강제 변환합니다.
         # (기존 데이터가 "1,234,000" 처럼 문자열로 로드되었을 경우 대비)
@@ -163,11 +172,11 @@ class ExcelMasterAdapter(ExcelMasterReportPort):
                 # 4. NaN을 0으로 (결측치 방지)
                 full_data_df['금액'] = full_data_df['금액'].fillna(0)
             except Exception as clean_e:
-                print(f"    -> [Adapter] 🚨 '금액' 컬럼 숫자 변환 중 오류: {clean_e}")
+                print(f"    -> [Adapter:MasterExcel] 🚨 '금액' 컬럼 숫자 변환 중 오류: {clean_e}")
                 # (오류가 나도 일단 진행 시도)
         # --- [수정 코드 끝] ---
         if full_data_df.empty:
-             print(f"    -> [Adapter] ⚠️ '{sheet_name}' 원본 데이터가 비어있어 피벗을 생성할 수 없습니다.")
+             print(f"    -> [Adapter:MasterExcel] ⚠️ '{sheet_name}' 원본 데이터가 비어있어 피벗을 생성할 수 없습니다.")
         else:
             try:
                 # [V21] '총계' 추가 전의 원본 피벗 (오늘 날짜 열 찾기용)
@@ -180,13 +189,13 @@ class ExcelMasterAdapter(ExcelMasterReportPort):
                 )
                 pivot_df['총계'] = pivot_df.sum(axis=1)
                 pivot_df_sorted = pivot_df.sort_values(by='총계', ascending=False)
-                print(f"    -> [Adapter] 피벗 테이블 계산 완료.")
+                print(f"    -> [Adapter:MasterExcel] 피벗 테이블 계산 완료.")
             except Exception as e:
-                print(f"    -> [Adapter] 🚨 피벗 테이블 계산 중 예외 발생: {e}")
+                print(f"    -> [Adapter:MasterExcel] 🚨 피벗 테이블 계산 중 예외 발생: {e}")
                 return False 
 
         # --- 6. [V22] 엑셀 파일 한 번에 쓰기 (모든 서식/순서 적용) ---
-        print(f"    -> [Adapter] 엑셀 파일 쓰기 작업 시작 ({file_name})...")
+        print(f"    -> [Adapter:MasterExcel] 엑셀 파일 쓰기 작업 시작 ({file_name})...")
         try:
             try:
                 book = openpyxl.load_workbook(file_path)
@@ -308,12 +317,12 @@ class ExcelMasterAdapter(ExcelMasterReportPort):
                  
             # [최종 저장] - 모든 변경사항을 한 번에 저장
             book.save(file_path)
-            print(f"    -> [Adapter] ✅ {file_name} 파일 저장 완료 (모든 서식 적용).")
+            print(f"    -> [Adapter:MasterExcel] ✅ {file_name} 파일 저장 완료 (모든 서식 적용).")
             
             if not pivot_df_sorted.empty:
-                 print(f"    -> [Adapter] 피벗 테이블 출력 샘플:\n{pivot_df_sorted.head()}")
+                 print(f"    -> [Adapter:MasterExcel] 피벗 테이블 출력 샘플:\n{pivot_df_sorted.head()}")
             return True
 
         except Exception as e:
-            print(f"    -> [Adapter] 🚨 엑셀 파일 쓰기 작업 중 예외 발생: {e}")
+            print(f"    -> [Adapter:MasterExcel] 🚨 엑셀 파일 쓰기 작업 중 예외 발생: {e}")
             return False # 파일 쓰기 실패

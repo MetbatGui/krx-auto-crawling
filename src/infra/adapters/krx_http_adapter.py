@@ -4,36 +4,37 @@ import datetime
 import os
 import time
 from dotenv import load_dotenv
-import requests.exceptions
+from typing import Optional
 
 from core.ports.krx_data_port import KrxDataPort
+from core.domain.models import Market, Investor
 
-load_dotenv()
-
-OTP_URL = os.getenv('KRX_OTP_URL')
-DOWNLOAD_URL = os.getenv('KRX_DOWNLOAD_URL')
-
-# 기존 DailyNetValueCrawler가 'Adapter'가 됩니다.
-# 상속받는 클래스가 KrxDataPort로 변경되었습니다.
 class KrxHttpAdapter(KrxDataPort):
     """
     KrxDataPort의 '구현체(Adapter)'입니다.
-    cloudscraper와 HTTP(OTP)를 사용하여 KRX에서a
+    cloudscraper와 HTTP(OTP)를 사용하여 KRX에서
     실제 데이터를 가져옵니다.
-    
-    (기존 DailyNetValueCrawler의 Docstring과 동일)
     """
     
     def __init__(self):
-        """(기존 __init__과 동일)"""
         super().__init__()
         self.scraper = cloudscraper.create_scraper()
+        # KRX 403 Forbidden 방지를 위한 헤더 설정
+        self.scraper.headers.update({
+            'Referer': 'http://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020101',
+            'Upgrade-Insecure-Requests': '1',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        })
         
-    def create_otp_params(self, market: str, investor: str, target_date: str) -> dict:
-        """(기존 create_otp_params와 동일)"""
+        # 환경 변수 로드 (인스턴스 생성 시점)
+        self.otp_url = os.getenv('KRX_OTP_URL')
+        self.download_url = os.getenv('KRX_DOWNLOAD_URL')
+
+        if not self.otp_url or not self.download_url:
+            raise EnvironmentError("KRX_OTP_URL or KRX_DOWNLOAD_URL is not set in environment variables.")
         
-        market = market.upper()
-        investor = investor.lower()
+    def create_otp_params(self, market: Market, investor: Investor, target_date: str) -> dict:
+        """KRX OTP 발급을 위한 요청 페이로드를 생성합니다."""
         
         params = {
             'locale': 'ko_KR',
@@ -47,61 +48,55 @@ class KrxHttpAdapter(KrxDataPort):
             'url': 'dbms/MDC/STAT/standard/MDCSTAT02401'
         }
         
-        if market == 'KOSPI':
+        if market == Market.KOSPI:
             params['mktId'] = 'STK'
-        elif market == 'KOSDAQ':
+        elif market == Market.KOSDAQ:
             params['mktId'] = 'KSQ'
             params['segTpCd'] = 'ALL' 
         else:
             raise ValueError(f"Unsupported market ID: {market}")
 
-        if investor == 'institutions':
+        if investor == Investor.INSTITUTIONS:
             params['invstTpCd'] = '7050'
-        elif investor == 'foreigner':
+        elif investor == Investor.FOREIGNER:
             params['invstTpCd'] = '9000'
         else:
             raise ValueError(f"Unsupported investor type: {investor}")
             
         return params
     
-    # 'crawl' 메서드 이름을 'fetch_net_value_data'로 변경 (Port 준수)
     def fetch_net_value_data(
         self, 
-        market: str, 
-        investor: str, 
-        date_str: str = None
+        market: Market, 
+        investor: Investor, 
+        date_str: Optional[str] = None
     ) -> bytes:
         """
-        (기존 crawl 메서드의 Docstring과 동일)
+        지정된 조건의 투자자별 순매수 원본 엑셀(bytes)을 가져옵니다.
         """
         
-        # 1. 날짜 설정 및 파라미터 준비 (기존 로직 동일)
         if date_str is None:
             target_date = datetime.date.today().strftime('%Y%m%d')
         else:
             target_date = date_str
             
-        market = market.upper()
-        investor = investor.lower()
-            
         time.sleep(1) 
         
         otp_payload = self.create_otp_params(market, investor, target_date)
         
-        print(f"  [Adapter:KrxHttp] Fetching raw data for {market} ({investor}) on {target_date}")
+        print(f"  [Adapter:KrxHttp] Fetching raw data for {market.value} ({investor.value}) on {target_date}")
         
-        # --- 2단계: OTP 생성 요청 (기존 로직 동일) ---
-        otp_response = self.scraper.post(OTP_URL, data=otp_payload, verify=True)
+        # OTP 생성 요청
+        otp_response = self.scraper.post(self.otp_url, data=otp_payload, verify=True)
         otp_response.raise_for_status() 
         otp_code = otp_response.text
 
         if not otp_code or len(otp_code) < 50:
             raise ConnectionError(f"OTP acquisition failed. Response: {otp_code[:50]}")
 
-        # --- 3단계: 파일 다운로드 요청 (기존 로직 동일) ---
+        # 파일 다운로드 요청
         download_payload = {'code': otp_code}
-        download_response = self.scraper.post(DOWNLOAD_URL, data=download_payload, verify=True)
+        download_response = self.scraper.post(self.download_url, data=download_payload, verify=True)
         download_response.raise_for_status()
 
-        # --- 4단계: 원본 바이트 반환 (기존 로직 동일) ---
         return download_response.content

@@ -9,6 +9,7 @@ from core.services.daily_routine_service import DailyRoutineService
 from core.services.krx_fetch_service import KrxFetchService
 
 # Adapters
+from infra.adapters.storage import LocalStorageAdapter
 from infra.adapters.krx_http_adapter import KrxHttpAdapter
 from infra.adapters.daily_excel_adapter import DailyExcelAdapter
 from infra.adapters.master_excel_adapter import MasterExcelAdapter
@@ -51,15 +52,18 @@ def main():
     
     print(f"--- [Main] KRX Auto Crawling System Initializing (Target: {target_date}) ---")
 
-    # 4. 어댑터(Adapters) 인스턴스 생성
+    # 4. StoragePort 인스턴스 생성
+    storage = LocalStorageAdapter(base_path=BASE_OUTPUT_PATH)
+
+    # 5. 어댑터(Adapters) 인스턴스 생성 및 의존성 주입
     # (Infra Layer)
     krx_adapter = KrxHttpAdapter()
-    daily_adapter = DailyExcelAdapter(base_path=BASE_OUTPUT_PATH)
-    master_adapter = MasterExcelAdapter(base_path=BASE_OUTPUT_PATH)
-    ranking_adapter = RankingExcelAdapter(base_path=BASE_OUTPUT_PATH, file_name="2025일별수급순위정리표.xlsx")
-    watchlist_adapter = WatchlistFileAdapter(base_path=BASE_OUTPUT_PATH)
+    daily_adapter = DailyExcelAdapter(storage=storage)
+    master_adapter = MasterExcelAdapter(base_path=BASE_OUTPUT_PATH)  # 아직 미마이그레이션
+    ranking_adapter = RankingExcelAdapter(base_path=BASE_OUTPUT_PATH, file_name="2025일별수급순위정리표.xlsx")  # 아직 미마이그레이션
+    watchlist_adapter = WatchlistFileAdapter(storage=storage)
 
-    # 5. 서비스(Services) 인스턴스 생성 및 의존성 주입
+    # 6. 서비스(Services) 인스턴스 생성 및 의존성 주입
     # (Core Layer)
     fetch_service = KrxFetchService(krx_port=krx_adapter)
     

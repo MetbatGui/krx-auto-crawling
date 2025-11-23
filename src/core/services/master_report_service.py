@@ -1,22 +1,41 @@
 """
 마스터 리포트 비즈니스 로직 서비스
 
-MasterExcelAdapter에서 분리된 데이터 처리 및 검증 로직을 제공합니다.
+전체 워크플로우를 오케스트레이션하고 StoragePort를 통해 파일 I/O를 수행합니다.
 """
 import pandas as pd
-from infra.adapters.excel import PivotTableCalculator
+import datetime
+from typing import Dict, List
+from pathlib import Path
+
+from core.ports.storage_port import StoragePort
+from core.domain.models import KrxData
 
 
 class MasterReportService:
-    """마스터 리포트 데이터 처리 서비스"""
+    """마스터 리포트 비즈니스 로직 서비스"""
     
-    def __init__(self, pivot_calculator: PivotTableCalculator):
+    def __init__(self, storage: StoragePort, file_name_prefix: str = "2025"):
         """
         Args:
-            pivot_calculator: 피벗 계산 유틸리티
+            storage: 파일 저장/로드를 위한 StoragePort
+            file_name_prefix: 파일명에 사용될 연도 접두사
         """
-        self.pivot_calculator = pivot_calculator
+        self.storage = storage
         self.excel_columns = ['일자', '종목', '금액']
+        
+        # 파일 경로 설정
+        self.master_subdir = "순매수도"
+        year_suffix = f"({file_name_prefix})"
+        self.file_map: Dict[str, str] = {
+            'KOSPI_foreigner': f'코스피외국인순매수도{year_suffix}.xlsx',
+            'KOSDAQ_foreigner': f'코스닥외국인순매수도{year_suffix}.xlsx',
+            'KOSPI_institutions': f'코스피기관순매수도{year_suffix}.xlsx',
+            'KOSDAQ_institutions': f'코스닥기관순매수도{year_suffix}.xlsx',
+        }
+        
+        # 순매수도 디렉토리 생성
+        self.storage.ensure_directory(self.master_subdir)
     
     def transform_to_excel_schema(
         self,

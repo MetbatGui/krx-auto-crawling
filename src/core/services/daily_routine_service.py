@@ -50,7 +50,7 @@ class DailyRoutineService:
 
         # 3. 마스터 리포트 업데이트
         print("\n--- [Step 2] 마스터 리포트 업데이트 ---")
-        self.master_port.update_master_reports(data_list)
+        self.master_port.update_reports(data_list)
 
         # 4. 수급 순위표 업데이트
         print("\n--- [Step 3] 수급 순위표 업데이트 ---")

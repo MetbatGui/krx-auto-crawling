@@ -41,6 +41,83 @@ class MasterReportService:
         # 순매수도 디렉토리 생성
         self.storage.ensure_directory(self.master_subdir)
     
+    def update_reports(self, data_list: List[KrxData]) -> None:
+        """
+        마스터 리포트 전체 업데이트 워크플로우
+        
+        Args:
+            data_list: 업데이트할 KRX 데이터 리스트
+        """
+        print(f"[Service:MasterReport] 마스터 리포트 업데이트 시작...")
+        
+        for item in data_list:
+            if item.data.empty:
+                print(f"  [Service:MasterReport] ⚠️ {item.key} 데이터가 비어있어 건너뜁니다.")
+                continue
+            
+            try:
+                report_date = datetime.datetime.strptime(item.date_str, '%Y%m%d').date()
+                self._update_single_report(item.key, item.data, report_date)
+            except Exception as e:
+                print(f"  [Service:MasterReport] 🚨 {item.key} 업데이트 실패: {e}")
+    
+    def _update_single_report(
+        self,
+        report_key: str,
+        daily_data: pd.DataFrame,
+        report_date: datetime.date
+    ) -> bool:
+        """
+        단일 리포트를 업데이트합니다.
+        
+        Args:
+            report_key: 리포트 키 (예: 'KOSPI_foreigner')
+            daily_data: 일별 데이터
+            report_date: 리포트 날짜
+            
+        Returns:
+            성공 여부
+        """
+        file_name = self.file_map.get(report_key)
+        if not file_name:
+            print(f"    -> [Service:MasterReport] 🚨 알 수 없는 리포트 키: {report_key}")
+            return False
+        
+        file_path = f"{self.master_subdir}/{file_name}"
+        sheet_name = report_date.strftime('%b').upper()
+        pivot_sheet_name = report_date.strftime('%m%d')
+        date_int = int(report_date.strftime('%Y%m%d'))
+        
+        print(f"    -> [Service:MasterReport] {file_name} 업데이트 시작...")
+        
+        # 1. 빠른 건너뛰기
+        if self._should_skip(file_path, pivot_sheet_name):
+            return True
+        
+        # 2. 데이터 변환
+        new_data = self.transform_to_excel_schema(daily_data, date_int)
+        
+        # 3. 기존 데이터 로드
+        existing_data = self._load_existing_data(file_path, sheet_name)
+        sheet_exists = not existing_data.empty or self.storage.path_exists(file_path)
+        
+        # 4. 중복 검사
+        if self.check_duplicate_date(existing_data, date_int):
+            new_data = pd.DataFrame(columns=self.excel_columns)
+            print(f"    -> [Service:MasterReport] 데이터 추가 건너뜀 (피벗은 생성)")
+        
+        # 5. 병합
+        merged_data = self.merge_data(existing_data, new_data)
+        
+        # 6. 피벗 계산
+        pivot_data = self._calculate_pivot(merged_data, date_int)
+        
+        # 7. 저장
+        return self._save_workbook(
+            file_path, sheet_name, pivot_sheet_name,
+            new_data, pivot_data, date_int, sheet_exists
+        )
+    
     def transform_to_excel_schema(
         self,
         daily_data: pd.DataFrame,

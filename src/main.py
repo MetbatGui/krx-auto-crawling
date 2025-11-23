@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from core.services.daily_routine_service import DailyRoutineService
 from core.services.krx_fetch_service import KrxFetchService
 from core.services.master_report_service import MasterReportService
+from core.services.master_data_service import MasterDataService
 from core.services.ranking_analysis_service import RankingAnalysisService
 
 # Adapters
@@ -15,6 +16,9 @@ from infra.adapters.storage import LocalStorageAdapter
 from infra.adapters.krx_http_adapter import KrxHttpAdapter
 from infra.adapters.daily_excel_adapter import DailyExcelAdapter
 from infra.adapters.watchlist_file_adapter import WatchlistFileAdapter
+from infra.adapters.excel.master_workbook_adapter import MasterWorkbookAdapter
+from infra.adapters.excel.master_sheet_adapter import MasterSheetAdapter
+from infra.adapters.excel.master_pivot_sheet_adapter import MasterPivotSheetAdapter
 
 def parse_arguments():
     """CLI 인자 파싱"""
@@ -60,11 +64,26 @@ def main():
     krx_adapter = KrxHttpAdapter()
     daily_adapter = DailyExcelAdapter(storage=storage)
     watchlist_adapter = WatchlistFileAdapter(storage=storage)
+    
+    # Master 관련 어댑터들
+    master_sheet_adapter = MasterSheetAdapter()
+    master_pivot_sheet_adapter = MasterPivotSheetAdapter()
+    master_workbook_adapter = MasterWorkbookAdapter(
+        storage=storage,
+        sheet_adapter=master_sheet_adapter,
+        pivot_sheet_adapter=master_pivot_sheet_adapter
+    )
 
     # 6. 서비스(Services) 인스턴스 생성 및 의존성 주입
     # (Core Layer)
     fetch_service = KrxFetchService(krx_port=krx_adapter)
-    master_service = MasterReportService(storage=storage, file_name_prefix="2025")
+    master_data_service = MasterDataService()
+    master_service = MasterReportService(
+        storage=storage,
+        data_service=master_data_service,
+        workbook_adapter=master_workbook_adapter,
+        file_name_prefix="2025"
+    )
     ranking_service = RankingAnalysisService(storage=storage, file_name="2025일별수급순위정리표.xlsx")
     
     routine_service = DailyRoutineService(

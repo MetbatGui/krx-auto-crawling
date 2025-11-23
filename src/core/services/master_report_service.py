@@ -171,3 +171,74 @@ class MasterReportService:
         except Exception as e:
             print(f"    -> [Service:MasterReport] 🚨 피벗 계산 실패: {e}")
             return pd.DataFrame()
+    
+    def _should_skip(self, file_path: str, pivot_sheet_name: str) -> bool:
+        """
+        빠른 건너뛰기 확인 - 피벗 시트가 이미 존재하는지 체크합니다.
+        
+        Args:
+            file_path: 파일 경로 (상대 경로)
+            pivot_sheet_name: 피벗 시트 이름
+            
+        Returns:
+            건너뛰기 여부 (True면 이미 처리됨)
+        """
+        if not self.storage.path_exists(file_path):
+            return False
+            
+        try:
+            book = self.storage.load_workbook(file_path)
+            if book and pivot_sheet_name in book.sheetnames:
+                book.close()
+                print(f"    -> [Service:MasterReport] ⚠️ '{pivot_sheet_name}' 피벗 시트 존재 - 건너뛰기")
+                return True
+        except Exception as e:
+            print(f"    -> [Service:MasterReport] ⚠️ 건너뛰기 확인 중 오류: {e}")
+        
+        return False
+    
+    def _load_existing_data(
+        self, 
+        file_path: str, 
+        sheet_name: str
+    ) -> pd.DataFrame:
+        """
+        기존 엑셀 데이터를 로드합니다.
+        
+        Args:
+            file_path: 파일 경로 (상대 경로)
+            sheet_name: 시트 이름
+            
+        Returns:
+            로드된 DataFrame (파일이 없으면 빈 DataFrame)
+        """
+        if not self.storage.path_exists(file_path):
+            print(f"    -> [Service:MasterReport] 새 파일이 생성됩니다")
+            return pd.DataFrame(columns=self.excel_columns)
+            
+        try:
+            # StoragePort의 base_path를 고려하여 전체 경로 구성
+            full_path = Path(self.storage.base_path) / file_path
+            
+            df = pd.read_excel(
+                full_path,
+                sheet_name=sheet_name,
+                engine='openpyxl',
+                skiprows=1,
+                dtype={'일자': int}
+            )
+            
+            if not df.empty and all(col in df.columns for col in self.excel_columns):
+                result = df[self.excel_columns].copy()
+                print(f"    -> [Service:MasterReport] 기존 '{sheet_name}' 시트 데이터 ({len(result)}줄) 로드 완료")
+                return result
+            else:
+                print(f"    -> [Service:MasterReport] ⚠️ {sheet_name} 시트 헤더가 손상됨")
+                return pd.DataFrame(columns=self.excel_columns)
+                
+        except (FileNotFoundError, ValueError, KeyError) as e:
+            print(f"    -> [Service:MasterReport] ⚠️ 시트가 없어 새로 생성합니다")
+            return pd.DataFrame(columns=self.excel_columns)
+        except Exception as e:
+            print(f"    -> [Service:MasterReport] 🚨 파일 로드 실패: {e}")
+            raise

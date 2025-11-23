@@ -8,12 +8,12 @@ from dotenv import load_dotenv
 from core.services.daily_routine_service import DailyRoutineService
 from core.services.krx_fetch_service import KrxFetchService
 from core.services.master_report_service import MasterReportService
+from core.services.ranking_analysis_service import RankingAnalysisService
 
 # Adapters
 from infra.adapters.storage import LocalStorageAdapter
 from infra.adapters.krx_http_adapter import KrxHttpAdapter
 from infra.adapters.daily_excel_adapter import DailyExcelAdapter
-from infra.adapters.ranking_excel_adapter import RankingExcelAdapter
 from infra.adapters.watchlist_file_adapter import WatchlistFileAdapter
 
 def parse_arguments():
@@ -59,19 +59,19 @@ def main():
     # (Infra Layer)
     krx_adapter = KrxHttpAdapter()
     daily_adapter = DailyExcelAdapter(storage=storage)
-    ranking_adapter = RankingExcelAdapter(base_path=BASE_OUTPUT_PATH, file_name="2025일별수급순위정리표.xlsx")  # TODO: 추후 마이그레이션
     watchlist_adapter = WatchlistFileAdapter(storage=storage)
 
     # 6. 서비스(Services) 인스턴스 생성 및 의존성 주입
     # (Core Layer)
     fetch_service = KrxFetchService(krx_port=krx_adapter)
     master_service = MasterReportService(storage=storage, file_name_prefix="2025")
+    ranking_service = RankingAnalysisService(storage=storage, file_name="2025일별수급순위정리표.xlsx")
     
     routine_service = DailyRoutineService(
         fetch_service=fetch_service,
         daily_port=daily_adapter,
         master_port=master_service,
-        ranking_port=ranking_adapter,
+        ranking_port=ranking_service,
         watchlist_port=watchlist_adapter
     )
 

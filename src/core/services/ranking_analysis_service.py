@@ -12,7 +12,6 @@ import openpyxl
 from openpyxl.workbook.workbook import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.styles import PatternFill
-from openpyxl.styles.fills import FILL_NONE
 
 from core.ports.storage_port import StoragePort
 from core.domain.models import KrxData
@@ -208,7 +207,7 @@ class RankingAnalysisService:
         for row in ws[self.DATA_RANGE_TO_CLEAR]:
             for cell in row:
                 cell.value = None
-                cell.fill = FILL_NONE
+                cell.fill = PatternFill()  # 빈 Fill 객체
     
     def _paste_single_list(
         self,

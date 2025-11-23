@@ -125,3 +125,49 @@ class MasterReportService:
             빈 DataFrame (일자, 종목, 금액 컬럼)
         """
         return pd.DataFrame(columns=self.excel_columns)
+    
+    def _calculate_pivot(
+        self, 
+        data: pd.DataFrame, 
+        date_int: int
+    ) -> pd.DataFrame:
+        """
+        피벗 테이블을 계산합니다.
+        
+        Args:
+            data: 원본 데이터 (일자, 종목, 금액 컬럼 포함)
+            date_int: 기준 날짜 (피벗 컬럼에서 찾기 위함)
+            
+        Returns:
+            정렬된 피벗 DataFrame (총계 포함)
+        """
+        if data.empty:
+            print(f"    -> [Service:MasterReport] ⚠️ 데이터가 비어있어 피벗을 생성할 수 없습니다.")
+            return pd.DataFrame()
+        
+        try:
+            # 1. 금액 컬럼 정제 (문자열 -> 숫자)
+            data = data.copy()
+            data['금액'] = data['금액'].astype(str).str.replace(r'[^0-9.-]', '', regex=True)
+            data['금액'] = data['금액'].replace('', 0)
+            data['금액'] = pd.to_numeric(data['금액'], errors='coerce').fillna(0)
+            
+            # 2. 피벗 테이블 생성
+            pivot = pd.pivot_table(
+                data,
+                values='금액',
+                index='종목',
+                columns='일자',
+                aggfunc='sum'
+            )
+            
+            # 3. 총계 추가 및 정렬
+            pivot['총계'] = pivot.sum(axis=1)
+            pivot_sorted = pivot.sort_values(by='총계', ascending=False)
+            
+            print(f"    -> [Service:MasterReport] 피벗 테이블 계산 완료")
+            return pivot_sorted
+            
+        except Exception as e:
+            print(f"    -> [Service:MasterReport] 🚨 피벗 계산 실패: {e}")
+            return pd.DataFrame()

@@ -1,8 +1,8 @@
 from typing import Optional
 from core.services.krx_fetch_service import KrxFetchService
+from core.services.master_report_service import MasterReportService
+from core.services.ranking_analysis_service import RankingAnalysisService
 from core.ports.daily_report_port import DailyReportPort
-from core.ports.master_report_port import MasterReportPort
-from core.ports.ranking_report_port import RankingReportPort
 from core.ports.watchlist_port import WatchlistPort
 
 class DailyRoutineService:
@@ -14,8 +14,8 @@ class DailyRoutineService:
         self,
         fetch_service: KrxFetchService,
         daily_port: DailyReportPort,
-        master_port: MasterReportPort,
-        ranking_port: RankingReportPort,
+        master_port: MasterReportService,
+        ranking_port: RankingAnalysisService,
         watchlist_port: WatchlistPort
     ):
         self.fetch_service = fetch_service
@@ -29,8 +29,8 @@ class DailyRoutineService:
         전체 일일 루틴을 실행합니다.
         1. 데이터 수집 (FetchService)
         2. 일별 리포트 저장 (DailyReportPort)
-        3. 마스터 리포트 업데이트 (MasterReportPort)
-        4. 수급 순위표 업데이트 (RankingReportPort)
+        3. 마스터 리포트 업데이트 (MasterReportService)
+        4. 수급 순위표 업데이트 (RankingAnalysisService)
         5. 관심종목 파일 저장 (WatchlistPort)
         """
         print(f"\n=== [DailyRoutineService] 루틴 시작 (Date: {date_str}) ===")

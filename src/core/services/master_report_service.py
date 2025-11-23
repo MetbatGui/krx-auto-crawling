@@ -8,6 +8,10 @@ import datetime
 from typing import Dict, List
 from pathlib import Path
 
+import openpyxl
+from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.styles import Font, PatternFill
+
 from core.ports.storage_port import StoragePort
 from core.domain.models import KrxData
 
@@ -242,3 +246,157 @@ class MasterReportService:
         except Exception as e:
             print(f"    -> [Service:MasterReport] 🚨 파일 로드 실패: {e}")
             raise
+    
+    def _save_workbook(
+        self,
+        file_path: str,
+        sheet_name: str,
+        pivot_sheet_name: str,
+        new_data: pd.DataFrame,
+        pivot_data: pd.DataFrame,
+        date_int: int,
+        sheet_exists: bool
+    ) -> bool:
+        """
+        Excel 워크북을 생성하고 저장합니다.
+        
+        Args:
+            file_path: 파일 경로 (상대 경로)
+            sheet_name: Raw 데이터 시트 이름
+            pivot_sheet_name: 피벗 시트 이름
+            new_data: 추가할 새 데이터
+            pivot_data: 피벗 테이블 데이터
+            date_int: 기준 날짜
+            sheet_exists: Raw 시트 존재 여부
+            
+        Returns:
+            저장 성공 여부
+        """
+        try:
+            # 1. 워크북 로드 또는 생성
+            book = self.storage.load_workbook(file_path)
+            if book is None:
+                book = openpyxl.Workbook()
+                if 'Sheet' in book.sheetnames:
+                    book.remove(book['Sheet'])
+            
+            # 2. Raw 데이터 시트 업데이트
+            if not new_data.empty:
+                self._update_raw_sheet(book, sheet_name, new_data, sheet_exists)
+            
+            # 3. 피벗 시트 생성
+            self._create_pivot_sheet(
+                book, sheet_name, pivot_sheet_name,
+                pivot_data, date_int
+            )
+            
+            # 4. 저장
+            success = self.storage.save_workbook(book, file_path)
+            if success:
+                print(f"    -> [Service:MasterReport] ✅ Excel 파일 저장 완료")
+                if not pivot_data.empty:
+                    print(f"    -> [Service:MasterReport] 피벗 샘플:\n{pivot_data.head()}")
+            return success
+            
+        except Exception as e:
+            print(f"    -> [Service:MasterReport] 🚨 워크북 저장 실패: {e}")
+            return False
+    
+    def _update_raw_sheet(
+        self,
+        book: openpyxl.Workbook,
+        sheet_name: str,
+        new_data: pd.DataFrame,
+        sheet_exists: bool
+    ) -> None:
+        """Raw 데이터 시트를 업데이트합니다."""
+        if sheet_exists and sheet_name in book.sheetnames:
+            # 기존 시트에 추가
+            ws = book[sheet_name]
+            print(f"    -> [Service:MasterReport] '{sheet_name}' 시트에 데이터 추가")
+            for row in dataframe_to_rows(new_data, index=False, header=False):
+                ws.append(row)
+        else:
+            # 새 시트 생성 (마지막 시트 앞에)
+            data_sheet_index = max(0, len(book.sheetnames) - 1) if book.sheetnames else 0
+            ws = book.create_sheet(title=sheet_name, index=data_sheet_index)
+            print(f"    -> [Service:MasterReport] '{sheet_name}' 시트 생성")
+            
+            ws.append([])  # A1 빈 행
+            ws.append(list(new_data.columns))  # A2 헤더
+            for row in dataframe_to_rows(new_data, index=False, header=False):
+                ws.append(row)
+    
+    def _create_pivot_sheet(
+        self,
+        book: openpyxl.Workbook,
+        sheet_name: str,
+        pivot_sheet_name: str,
+        pivot_data: pd.DataFrame,
+        date_int: int
+    ) -> None:
+        """피벗 시트를 생성하고 서식을 적용합니다."""
+        # 기존 피벗 시트 삭제
+        if pivot_sheet_name in book.sheetnames:
+            book.remove(book[pivot_sheet_name])
+        
+        # Raw 시트 앞에 피벗 시트 생성
+        try:
+            data_sheet_index = book.sheetnames.index(sheet_name)
+        except ValueError:
+            data_sheet_index = 0
+        
+        pivot_ws = book.create_sheet(title=pivot_sheet_name, index=data_sheet_index)
+        print(f"    -> [Service:MasterReport] '{pivot_sheet_name}' 피벗 시트 생성")
+        
+        # 서식 정의
+        header_fill = PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid")
+        red_font = Font(color="FF0000")
+        top_5_colors = ["FF0000", "FFC000", "FFFF00", "92D050", "00B0F0"]
+        top_5_fills = [PatternFill(start_color=c, end_color=c, fill_type="solid") for c in top_5_colors]
+        
+        # 2행 비우기
+        pivot_ws.append([])
+        pivot_ws.append([])
+        
+        # A열 너비 조정
+        pivot_ws.column_dimensions['A'].width = 22.86
+        
+        # 피벗 데이터 쓰기
+        if not pivot_data.empty:
+            for r in dataframe_to_rows(pivot_data, index=True, header=True):
+                pivot_ws.append(r)
+            
+            max_col = 1 + len(pivot_data.columns)
+            data_start_row = 5
+            
+            # 헤더 배경색
+            for row in pivot_ws.iter_rows(min_row=3, max_row=4, min_col=1, max_col=max_col):
+                for cell in row:
+                    cell.fill = header_fill
+            
+            # Top 20 빨간색 폰트
+            safe_end_row = min(data_start_row + 19, pivot_ws.max_row)
+            for row in pivot_ws.iter_rows(min_row=data_start_row, max_row=safe_end_row, min_col=1, max_col=1):
+                row[0].font = red_font
+            
+            # 당일 Top 5 배경색
+            if date_int in pivot_data.columns:
+                try:
+                    # 총계 제외한 피벗에서 날짜 열 찾기
+                    pivot_without_total = pivot_data.drop(columns=['총계']) if '총계' in pivot_data.columns else pivot_data
+                    if date_int in pivot_without_total.columns:
+                        date_col_idx = list(pivot_without_total.columns).index(date_int)
+                        target_col = date_col_idx + 2  # 인덱스 열 고려
+                        
+                        top_5_series = pivot_data[date_int].nlargest(5)
+                        top_5_series = top_5_series[top_5_series > 0]
+                        top_5_map = {stock: fill for stock, fill in zip(top_5_series.index, top_5_fills)}
+                        
+                        if top_5_map:
+                            print(f"    -> [Service:MasterReport] 당일 Top {len(top_5_map)} 배경색 적용")
+                            for row in pivot_ws.iter_rows(min_row=data_start_row, max_row=pivot_ws.max_row, min_col=1, max_col=target_col):
+                                if row[0].value in top_5_map:
+                                    row[target_col - 1].fill = top_5_map[row[0].value]
+                except Exception as e:
+                    print(f"    -> [Service:MasterReport] ⚠️ 배경색 적용 건너뜀: {e}")

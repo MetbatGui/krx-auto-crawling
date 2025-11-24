@@ -2,6 +2,10 @@
 
 import pandas as pd
 from typing import List, Dict
+"""Watchlist 파일 저장 어댑터"""
+
+import pandas as pd
+from typing import List, Dict
 
 from core.ports.watchlist_port import WatchlistPort
 from core.ports.storage_port import StoragePort
@@ -9,16 +13,20 @@ from core.domain.models import KrxData
 
 
 class WatchlistFileAdapter(WatchlistPort):
-    """WatchlistPort 구현체
-    
+    """WatchlistPort 구현체.
+
     일별/누적 상위 종목을 HTS 업로드용 CSV 파일로 저장합니다.
+
+    Attributes:
+        storage (StoragePort): 파일 저장 포트
     """
     
     REPORT_ORDER = ['KOSPI_foreigner', 'KOSDAQ_foreigner', 'KOSPI_institutions', 'KOSDAQ_institutions']
     TOP_N = 20
     
     def __init__(self, storage: StoragePort):
-        """
+        """WatchlistFileAdapter 초기화.
+
         Args:
             storage: StoragePort 구현체
         """
@@ -89,7 +97,7 @@ class WatchlistFileAdapter(WatchlistPort):
         filename: str,
         description: str
     ) -> None:
-        """종목 리스트를 CSV 파일로 저장하는 공통 로직
+        """종목 리스트를 CSV 파일로 저장하는 공통 로직.
         
         Args:
             top_stocks: 리포트별 종목 딕셔너리

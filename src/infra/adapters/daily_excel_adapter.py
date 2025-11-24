@@ -1,5 +1,7 @@
 import pandas as pd
 from typing import List
+import pandas as pd
+from typing import List
 
 from core.ports.daily_report_port import DailyReportPort
 from core.ports.storage_port import StoragePort
@@ -7,13 +9,24 @@ from core.domain.models import KrxData
 
 
 class DailyExcelAdapter(DailyReportPort):
-    """
-    DailyReportPort의 구현체입니다.
+    """DailyReportPort의 구현체.
+
     DataFrame을 일별 엑셀 파일로 저장합니다.
+
+    Attributes:
+        storage (StoragePort): 파일 저장 포트
     """
     
+    NAME_MAP = {
+        'KOSPI_foreigner': '코스피외국인',
+        'KOSPI_institutions': '코스피기관',
+        'KOSDAQ_foreigner': '코스닥외국인',
+        'KOSDAQ_institutions': '코스닥기관',
+    }
+
     def __init__(self, storage: StoragePort):
-        """
+        """DailyExcelAdapter 초기화.
+
         Args:
             storage: StoragePort 구현체 (LocalStorageAdapter 등)
         """
@@ -22,17 +35,13 @@ class DailyExcelAdapter(DailyReportPort):
         print(f"[Adapter:DailyExcel] 초기화 완료")
 
     def save_daily_reports(self, data_list: List[KrxData]) -> None:
-        """
-        수집된 데이터 리스트를 각각의 일별 엑셀 파일로 저장합니다.
-        파일명 형식: <날짜><시장><투자자>순매수.xlsx
-        """
-        NAME_MAP = {
-            'KOSPI_foreigner': '코스피외국인',
-            'KOSPI_institutions': '코스피기관',
-            'KOSDAQ_foreigner': '코스닥외국인',
-            'KOSDAQ_institutions': '코스닥기관',
-        }
+        """수집된 데이터 리스트를 각각의 일별 엑셀 파일로 저장합니다.
 
+        파일명 형식: <날짜><시장><투자자>순매수.xlsx
+
+        Args:
+            data_list: 저장할 KRX 데이터 리스트
+        """
         for item in data_list:
             if item.data.empty:
                 print(f"  [Adapter:DailyExcel] ⚠️ {item.key} 데이터가 비어있어 저장을 건너뜁니다.")
@@ -40,7 +49,7 @@ class DailyExcelAdapter(DailyReportPort):
 
             try:
                 # 파일 이름 생성
-                korean_name_part = NAME_MAP.get(item.key, item.key)
+                korean_name_part = self.NAME_MAP.get(item.key, item.key)
                 filename = f"순매수/{item.date_str}{korean_name_part}순매수.xlsx"
 
                 # 저장용 복사본 생성 및 포맷팅

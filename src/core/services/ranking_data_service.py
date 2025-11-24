@@ -5,14 +5,15 @@ from typing import Dict, Set, List
 
 
 class RankingDataService:
-    """순위표 관련 비즈니스 로직을 담당하는 서비스
-    
+    """순위표 관련 비즈니스 로직을 담당하는 서비스.
+
     외국인과 기관의 공통 매수 종목 계산 등 순수 비즈니스 로직만 포함합니다.
     Excel 등 기술 구현 세부사항에 의존하지 않습니다.
     """
     
     def __init__(self, top_n: int = 20):
-        """
+        """RankingDataService 초기화.
+
         Args:
             top_n: 상위 몇 개 종목을 분석할지 (기본 20개)
         """

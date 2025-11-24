@@ -6,7 +6,15 @@ from core.ports.daily_report_port import DailyReportPort
 from core.ports.watchlist_port import WatchlistPort
 
 class DailyRoutineService:
-    """일일 크롤링 및 리포트 업데이트 루틴을 총괄하는 오케스트레이션 서비스"""
+    """일일 크롤링 및 리포트 업데이트 루틴을 총괄하는 오케스트레이션 서비스.
+
+    Attributes:
+        fetch_service (KrxFetchService): KRX 데이터 수집 서비스
+        daily_port (DailyReportPort): 일별 리포트 저장 포트
+        master_port (MasterReportService): 마스터 리포트 서비스
+        ranking_port (RankingAnalysisService): 순위 분석 서비스
+        watchlist_port (WatchlistPort): 관심종목 저장 포트
+    """
 
     def __init__(
         self,
@@ -16,6 +24,15 @@ class DailyRoutineService:
         ranking_port: RankingAnalysisService,
         watchlist_port: WatchlistPort
     ):
+        """DailyRoutineService 초기화.
+
+        Args:
+            fetch_service: KRX 데이터 수집 서비스
+            daily_port: 일별 리포트 저장 포트
+            master_port: 마스터 리포트 서비스
+            ranking_port: 순위 분석 서비스
+            watchlist_port: 관심종목 저장 포트
+        """
         self.fetch_service = fetch_service
         self.daily_port = daily_port
         self.master_port = master_port
@@ -24,13 +41,17 @@ class DailyRoutineService:
 
     def execute(self, date_str: Optional[str] = None):
         """전체 일일 루틴을 실행합니다.
-        
+
+        다음 단계를 순차적으로 실행합니다:
         1. 데이터 수집
         2. 일별 리포트 저장
         3. 마스터 리포트 업데이트
         4. 누적 상위종목 watchlist 저장
         5. 수급 순위표 업데이트
         6. 일별 관심종목 파일 저장
+
+        Args:
+            date_str: 실행할 날짜 문자열 (YYYYMMDD). None일 경우 오늘 날짜 사용.
         """
         print(f"\n=== [DailyRoutineService] 루틴 시작 (Date: {date_str}) ===")
 

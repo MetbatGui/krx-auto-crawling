@@ -15,7 +15,16 @@ from infra.adapters.excel.master_workbook_adapter import MasterWorkbookAdapter
 
 
 class MasterReportService:
-    """마스터 리포트 워크플로우 오케스트레이션 서비스"""
+    """마스터 리포트 워크플로우 오케스트레이션 서비스.
+
+    전체 워크플로우를 오케스트레이션하고 다른 서비스/어댑터에 위임합니다.
+
+    Attributes:
+        storage (StoragePort): 파일 저장/로드 포트
+        data_service (MasterDataService): 데이터 처리 서비스
+        workbook_adapter (MasterWorkbookAdapter): 워크북 어댑터
+        file_map (Dict[str, str]): 리포트 키와 파일명 매핑
+    """
     
     def __init__(
         self,
@@ -24,12 +33,13 @@ class MasterReportService:
         workbook_adapter: MasterWorkbookAdapter,
         file_name_prefix: str = "2025"
     ):
-        """
+        """MasterReportService 초기화.
+
         Args:
-            storage: 파일 저장/로드를 위한 StoragePort
+            storage: 파일 저장/로드 포트
             data_service: 데이터 처리 서비스
-            workbook_adapter: 워크북 생성 어댑터
-            file_name_prefix: 파일명에 사용될 연도 접두사
+            workbook_adapter: 워크북 어댑터
+            file_name_prefix: 파일명 연도 접두사
         """
         self.storage = storage
         self.data_service = data_service
@@ -49,7 +59,7 @@ class MasterReportService:
         self.storage.ensure_directory(self.master_subdir)
     
     def update_reports(self, data_list: List[KrxData]) -> Dict[str, List[str]]:
-        """마스터 리포트 전체 업데이트 워크플로우
+        """마스터 리포트 전체 업데이트 워크플로우를 실행합니다.
         
         Args:
             data_list: 업데이트할 KRX 데이터 리스트
@@ -95,19 +105,48 @@ class MasterReportService:
         
         print(f"    -> [Service:MasterReport] {file_name} 업데이트 시작...")
         
-        # 0. 피벗 시트 존재 여부 확인 (스킵 로직)
-        if self.storage.path_exists(file_path):
-            try:
-                full_path = Path(self.storage.base_path) / file_path
-                xl = pd.ExcelFile(full_path, engine='openpyxl')
-                if pivot_sheet_name in xl.sheet_names:
-                    print(f"    -> [Service:MasterReport] ⚠️ {pivot_sheet_name} 피벗 시트가 이미 존재하여 업데이트를 건너뜁니다.")
-                    # 기존 피벗 데이터 로드 (Top 20 추출용)
-                    existing_pivot = pd.read_excel(full_path, sheet_name=pivot_sheet_name, engine='openpyxl')
-                    return self.data_service.extract_top_stocks(existing_pivot, top_n=20)
-            except Exception as e:
-                print(f"    -> [Service:MasterReport] 피벗 시트 확인 중 오류 (무시하고 진행): {e}")
+        # 1. 이미 존재하는 피벗 시트 확인 (최적화)
+        existing_top_stocks = self._check_existing_pivot(file_path, pivot_sheet_name)
+        if existing_top_stocks is not None:
+            return existing_top_stocks
         
+        # 2. 데이터 업데이트 및 피벗 생성
+        return self._process_update(
+            file_path, 
+            sheet_name, 
+            pivot_sheet_name, 
+            daily_data, 
+            date_int
+        )
+
+    def _check_existing_pivot(self, file_path: str, pivot_sheet_name: str) -> Optional[List[str]]:
+        """이미 존재하는 피벗 시트가 있는지 확인하고, 있다면 Top 20 종목을 반환합니다."""
+        if not self.storage.path_exists(file_path):
+            return None
+            
+        try:
+            full_path = Path(self.storage.base_path) / file_path
+            xl = pd.ExcelFile(full_path, engine='openpyxl')
+            
+            if pivot_sheet_name in xl.sheet_names:
+                print(f"    -> [Service:MasterReport] ⚠️ {pivot_sheet_name} 피벗 시트가 이미 존재하여 업데이트를 건너뜁니다.")
+                existing_pivot = pd.read_excel(full_path, sheet_name=pivot_sheet_name, engine='openpyxl')
+                return self.data_service.extract_top_stocks(existing_pivot, top_n=20)
+                
+        except Exception as e:
+            print(f"    -> [Service:MasterReport] 피벗 시트 확인 중 오류 (무시하고 진행): {e}")
+            
+        return None
+
+    def _process_update(
+        self,
+        file_path: str,
+        sheet_name: str,
+        pivot_sheet_name: str,
+        daily_data: pd.DataFrame,
+        date_int: int
+    ) -> List[str]:
+        """실제 데이터 업데이트 및 피벗 생성 로직을 수행합니다."""
         new_data = self.data_service.transform_to_excel_schema(daily_data, date_int)
         existing_data = self._load_existing_data(file_path, sheet_name)
         sheet_exists = not existing_data.empty or self.storage.path_exists(file_path)

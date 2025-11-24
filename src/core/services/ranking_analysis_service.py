@@ -9,10 +9,14 @@ from core.ports.ranking_report_port import RankingReportPort
 
 
 class RankingAnalysisService:
-    """순위표 워크플로우를 조율하는 오케스트레이션 서비스
-    
+    """순위표 워크플로우를 조율하는 오케스트레이션 서비스.
+
     비즈니스 로직(RankingDataService)과 리포트 생성(RankingReportPort)을
     조합하여 전체 순위표 업데이트 프로세스를 관리합니다.
+
+    Attributes:
+        data_service (RankingDataService): 순위 데이터 분석 서비스
+        report_port (RankingReportPort): 리포트 생성 포트
     """
     
     def __init__(
@@ -20,7 +24,8 @@ class RankingAnalysisService:
         data_service: RankingDataService,
         report_port: RankingReportPort
     ):
-        """
+        """RankingAnalysisService 초기화.
+
         Args:
             data_service: 순위 데이터 분석 서비스
             report_port: 리포트 생성 포트 (Excel, PDF 등)
@@ -32,6 +37,7 @@ class RankingAnalysisService:
     def update_ranking_report(self, data_list: List[KrxData]) -> None:
         """순위표 전체 업데이트 워크플로우를 실행합니다.
         
+        다음 단계를 수행합니다:
         1. 데이터 검증
         2. 공통 종목 계산 (비즈니스 로직)
         3. 리포트 생성 (Port에 위임)

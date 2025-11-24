@@ -23,7 +23,11 @@ from infra.adapters.excel.master_sheet_adapter import MasterSheetAdapter
 from infra.adapters.excel.master_pivot_sheet_adapter import MasterPivotSheetAdapter
 
 def parse_arguments():
-    """CLI 인자 파싱"""
+    """CLI 인자 파싱.
+
+    Returns:
+        argparse.Namespace: 파싱된 인자 객체
+    """
     parser = argparse.ArgumentParser(description='KRX Auto Crawling Service')
     parser.add_argument(
         'date', 
@@ -34,8 +38,8 @@ def parse_arguments():
     return parser.parse_args()
 
 def main():
-    """
-    KRX 자동 크롤링 프로젝트의 메인 진입점.
+    """KRX 자동 크롤링 프로젝트의 메인 진입점.
+
     의존성을 주입하고 DailyRoutineService를 실행합니다.
     """
     # 1. 환경 변수 로드
@@ -106,7 +110,7 @@ def main():
         watchlist_port=watchlist_adapter
     )
 
-    # 6. 메인 루틴 실행
+    # 7. 메인 루틴 실행
     try:
         routine_service.execute(date_str=target_date)
     except Exception as e:

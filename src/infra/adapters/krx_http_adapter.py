@@ -3,6 +3,11 @@ import cloudscraper
 import datetime
 import os
 import time
+# infra/adapters/krx_http_adapter.py
+import cloudscraper
+import datetime
+import os
+import time
 from dotenv import load_dotenv
 from typing import Optional
 
@@ -10,13 +15,22 @@ from core.ports.krx_data_port import KrxDataPort
 from core.domain.models import Market, Investor
 
 class KrxHttpAdapter(KrxDataPort):
-    """
-    KrxDataPort의 '구현체(Adapter)'입니다.
-    cloudscraper와 HTTP(OTP)를 사용하여 KRX에서
-    실제 데이터를 가져옵니다.
+    """KrxDataPort의 구현체 (Adapter).
+
+    cloudscraper와 HTTP(OTP)를 사용하여 KRX에서 실제 데이터를 가져옵니다.
+
+    Attributes:
+        scraper (cloudscraper.CloudScraper): CloudScraper 인스턴스
+        otp_url (str): OTP 발급 URL
+        download_url (str): 데이터 다운로드 URL
     """
     
     def __init__(self):
+        """KrxHttpAdapter 초기화.
+
+        Raises:
+            EnvironmentError: 필수 환경 변수가 설정되지 않은 경우
+        """
         super().__init__()
         self.scraper = cloudscraper.create_scraper()
         # KRX 403 Forbidden 방지를 위한 헤더 설정
@@ -33,7 +47,7 @@ class KrxHttpAdapter(KrxDataPort):
         if not self.otp_url or not self.download_url:
             raise EnvironmentError("KRX_OTP_URL or KRX_DOWNLOAD_URL is not set in environment variables.")
         
-    def create_otp_params(self, market: Market, investor: Investor, target_date: str) -> dict:
+    def _create_otp_params(self, market: Market, investor: Investor, target_date: str) -> dict:
         """KRX OTP 발급을 위한 요청 페이로드를 생성합니다."""
         
         params = {
@@ -71,8 +85,18 @@ class KrxHttpAdapter(KrxDataPort):
         investor: Investor, 
         date_str: Optional[str] = None
     ) -> bytes:
-        """
-        지정된 조건의 투자자별 순매수 원본 엑셀(bytes)을 가져옵니다.
+        """지정된 조건의 투자자별 순매수 원본 엑셀(bytes)을 가져옵니다.
+
+        Args:
+            market: 시장 구분 (KOSPI, KOSDAQ)
+            investor: 투자자 구분 (외국인, 기관)
+            date_str: 대상 날짜 (YYYYMMDD)
+
+        Returns:
+            다운로드된 엑셀 파일의 바이너리 데이터
+
+        Raises:
+            ConnectionError: OTP 발급 또는 다운로드 실패 시
         """
         
         if date_str is None:
@@ -82,7 +106,7 @@ class KrxHttpAdapter(KrxDataPort):
             
         time.sleep(1) 
         
-        otp_payload = self.create_otp_params(market, investor, target_date)
+        otp_payload = self._create_otp_params(market, investor, target_date)
         
         print(f"  [Adapter:KrxHttp] Fetching raw data for {market.value} ({investor.value}) on {target_date}")
         

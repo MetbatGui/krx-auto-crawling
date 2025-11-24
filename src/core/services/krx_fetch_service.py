@@ -8,18 +8,28 @@ from core.domain.models import KrxData, Market, Investor
 from core.ports.krx_data_port import KrxDataPort
 
 class KrxFetchService:
-    """
-    KRX 데이터 수집 및 표준화를 담당하는 헬퍼 서비스.
-    DailyRoutineService에서 호출하여 사용합니다.
+    """KRX 데이터 수집 및 표준화를 담당하는 헬퍼 서비스.
+
+    Attributes:
+        krx_port (KrxDataPort): KRX 데이터 포트 인터페이스
     """
 
     def __init__(self, krx_port: KrxDataPort):
+        """KrxFetchService 초기화.
+
+        Args:
+            krx_port: KRX 데이터 포트 인터페이스
+        """
         self.krx_port = krx_port
 
     def fetch_all_data(self, date_str: Optional[str] = None) -> List[KrxData]:
-        """
-        정의된 모든 시장(KOSPI, KOSDAQ)과 투자자(외국인, 기관) 조합에 대해
-        데이터를 수집하고 가공하여 KrxData 리스트로 반환합니다.
+        """모든 타겟(시장/투자자)에 대해 데이터를 수집하고 가공합니다.
+
+        Args:
+            date_str: 수집할 날짜 (YYYYMMDD). None이면 오늘 날짜.
+
+        Returns:
+            수집된 KrxData 객체 리스트
         """
         if date_str is None:
             date_str = datetime.date.today().strftime('%Y%m%d')
@@ -36,11 +46,11 @@ class KrxFetchService:
 
         for market, investor in targets:
             try:
-                # 1. 원본 데이터 수집 (Port 호출)
+                # 1. 원본 데이터 수집
                 raw_bytes = self.krx_port.fetch_net_value_data(market, investor, date_str)
                 
-                # 2. 데이터 가공 (내부 메서드 호출)
-                df = self._process_krx_excel(raw_bytes)
+                # 2. 데이터 가공
+                df = self._parse_and_filter_data(raw_bytes)
                 
                 if df.empty:
                     print(f"  -> ⚠️ {market.value} {investor.value} 데이터가 비어있습니다 (휴장일 등).")
@@ -61,56 +71,68 @@ class KrxFetchService:
 
         return results
 
-    def _process_krx_excel(self, excel_bytes: bytes) -> pd.DataFrame:
-        """
-        KRX 원본 CSV/Excel(bytes)을 파싱하여 순매수 상위 20개 DataFrame을 생성합니다.
+    def _parse_and_filter_data(self, excel_bytes: bytes) -> pd.DataFrame:
+        """KRX 원본 데이터를 파싱하고 순매수 상위 20개를 추출합니다.
+
+        Args:
+            excel_bytes: KRX에서 다운로드한 원본 바이트 데이터
+
+        Returns:
+            가공된 DataFrame (종목코드, 종목명, 순매수_거래대금)
         """
         if not excel_bytes:
             return pd.DataFrame()
 
-        try:
-            # 엑셀 파일 시그니처(PK) 확인
-            if excel_bytes.startswith(b'PK'):
-                df = pd.read_excel(io.BytesIO(excel_bytes))
-            else:
-                # CSV 파싱 (KRX는 CP949 인코딩 사용, 에러 무시)
-                df = pd.read_csv(io.BytesIO(excel_bytes), encoding='cp949', encoding_errors='replace')
-                
-        except Exception as e:
-            print(f"  [Service:KrxFetch] 🚨 데이터 파싱 중 오류: {e}")
+        # 1. 파싱
+        df = self._parse_bytes_to_df(excel_bytes)
+        if df.empty:
             return pd.DataFrame()
 
-        # --- 데이터 가공 (순매수 거래대금 상위 20) ---
-        sort_col = None
-        NET_VALUE_KEYWORDS = ['순매수', '거래대금']
-        
-        for col in df.columns:
-            if all(keyword in str(col).lower() for keyword in NET_VALUE_KEYWORDS):
-                sort_col = col
-                break
-        
-        # 순매수대금 컬럼을 찾지 못한 경우, 마지막 숫자 컬럼을 사용
+        # 2. 순매수 컬럼 식별
+        sort_col = self._find_net_value_column(df)
         if sort_col is None:
-            numeric_cols = df.select_dtypes(include=['number']).columns
-            if len(numeric_cols) > 0:
-                sort_col = numeric_cols[-1] 
-                print(f"  [Service:KrxFetch] ⚠️ 순매수 컬럼을 찾을 수 없어 '{sort_col}' 기준으로 정렬.")
-            else:
-                print("  [Service:KrxFetch] 🚨 유효한 숫자 컬럼이 없어 가공 실패.")
-                return pd.DataFrame()
+            return pd.DataFrame()
 
-        # 필수 컬럼 존재 여부 확인
+        # 3. 필수 컬럼 확인
         required_cols = ['종목코드', '종목명', sort_col]
         if not all(col in df.columns for col in required_cols):
             print(f"  [Service:KrxFetch] 🚨 필수 컬럼({required_cols})이 DF에 없습니다.")
             return pd.DataFrame()
 
+        # 4. 정렬 및 상위 20개 추출
         df_sorted = df.sort_values(by=sort_col, ascending=False)
         df_top20 = df_sorted.head(20).copy() 
         
-        # 최종 컬럼 선택 및 이름 변경
-        df_final = df_top20[required_cols].rename(
-            columns={sort_col: '순매수_거래대금'}
-        )
+        # 5. 최종 컬럼 선택 및 이름 변경
+        return df_top20[required_cols].rename(columns={sort_col: '순매수_거래대금'})
+
+    def _parse_bytes_to_df(self, excel_bytes: bytes) -> pd.DataFrame:
+        """바이트 데이터를 DataFrame으로 파싱합니다."""
+        try:
+            # 엑셀 파일 시그니처(PK) 확인
+            if excel_bytes.startswith(b'PK'):
+                return pd.read_excel(io.BytesIO(excel_bytes))
+            else:
+                # CSV 파싱 (KRX는 CP949 인코딩 사용, 에러 무시)
+                return pd.read_csv(io.BytesIO(excel_bytes), encoding='cp949', encoding_errors='replace')
+        except Exception as e:
+            print(f"  [Service:KrxFetch] 🚨 데이터 파싱 중 오류: {e}")
+            return pd.DataFrame()
+
+    def _find_net_value_column(self, df: pd.DataFrame) -> Optional[str]:
+        """순매수 거래대금 컬럼을 찾습니다."""
+        net_value_keywords = ['순매수', '거래대금']
         
-        return df_final
+        for col in df.columns:
+            if all(keyword in str(col).lower() for keyword in net_value_keywords):
+                return col
+        
+        # 키워드로 못 찾은 경우 마지막 숫자 컬럼 사용
+        numeric_cols = df.select_dtypes(include=['number']).columns
+        if len(numeric_cols) > 0:
+            sort_col = numeric_cols[-1]
+            print(f"  [Service:KrxFetch] ⚠️ 순매수 컬럼을 찾을 수 없어 '{sort_col}' 기준으로 정렬.")
+            return sort_col
+            
+        print("  [Service:KrxFetch] 🚨 유효한 숫자 컬럼이 없어 가공 실패.")
+        return None

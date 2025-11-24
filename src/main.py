@@ -10,12 +10,14 @@ from core.services.krx_fetch_service import KrxFetchService
 from core.services.master_report_service import MasterReportService
 from core.services.master_data_service import MasterDataService
 from core.services.ranking_analysis_service import RankingAnalysisService
+from core.services.ranking_data_service import RankingDataService
 
 # Adapters
 from infra.adapters.storage import LocalStorageAdapter
 from infra.adapters.krx_http_adapter import KrxHttpAdapter
 from infra.adapters.daily_excel_adapter import DailyExcelAdapter
 from infra.adapters.watchlist_file_adapter import WatchlistFileAdapter
+from infra.adapters.ranking_excel_adapter import RankingExcelAdapter
 from infra.adapters.excel.master_workbook_adapter import MasterWorkbookAdapter
 from infra.adapters.excel.master_sheet_adapter import MasterSheetAdapter
 from infra.adapters.excel.master_pivot_sheet_adapter import MasterPivotSheetAdapter
@@ -84,7 +86,17 @@ def main():
         workbook_adapter=master_workbook_adapter,
         file_name_prefix="2025"
     )
-    ranking_service = RankingAnalysisService(storage=storage, file_name="2025일별수급순위정리표.xlsx")
+    
+    # Ranking 서비스 조립 (헥사고날 아키텍처)
+    ranking_data_service = RankingDataService(top_n=20)
+    ranking_report_adapter = RankingExcelAdapter(
+        storage=storage,
+        file_name="2025일별수급순위정리표.xlsx"
+    )
+    ranking_service = RankingAnalysisService(
+        data_service=ranking_data_service,
+        report_port=ranking_report_adapter
+    )
     
     routine_service = DailyRoutineService(
         fetch_service=fetch_service,

@@ -113,13 +113,11 @@ class MasterDataService:
             return pd.DataFrame()
         
         try:
-            # 1. 금액 컬럼 정제 (문자열 -> 숫자)
             data = data.copy()
             data['금액'] = data['금액'].astype(str).str.replace(r'[^0-9.-]', '', regex=True)
             data['금액'] = data['금액'].replace('', 0)
             data['금액'] = pd.to_numeric(data['금액'], errors='coerce').fillna(0)
             
-            # 2. 피벗 테이블 생성
             pivot = pd.pivot_table(
                 data,
                 values='금액',
@@ -128,7 +126,6 @@ class MasterDataService:
                 aggfunc='sum'
             )
             
-            # 3. 총계 추가 및 정렬
             pivot['총계'] = pivot.sum(axis=1)
             pivot_sorted = pivot.sort_values(by='총계', ascending=False)
             
@@ -138,3 +135,26 @@ class MasterDataService:
         except Exception as e:
             print(f"    -> [Service:MasterData] 🚨 피벗 계산 실패: {e}")
             return pd.DataFrame()
+    
+    def extract_top_stocks(
+        self,
+        pivot_data: pd.DataFrame,
+        top_n: int = 20
+    ) -> List[str]:
+        """피벗 데이터에서 총계 기준 상위 N개 종목명을 추출합니다.
+        
+        Args:
+            pivot_data: 피벗 DataFrame (총계 컬럼 포함)
+            top_n: 추출할 상위 종목 개수 (기본 20)
+            
+        Returns:
+            상위 N개 종목명 리스트
+        """
+        if pivot_data.empty or '총계' not in pivot_data.columns:
+            print(f"    -> [Service:MasterData] ⚠️ 피벗 데이터가 비어있거나 총계 컬럼이 없습니다")
+            return []
+        
+        top_stocks = pivot_data.nlargest(top_n, '총계').index.tolist()
+        print(f"    -> [Service:MasterData] Top {len(top_stocks)} 종목 추출 완료")
+        
+        return top_stocks

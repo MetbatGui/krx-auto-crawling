@@ -48,14 +48,18 @@ class MasterReportService:
         # 순매수도 디렉토리 생성
         self.storage.ensure_directory(self.master_subdir)
     
-    def update_reports(self, data_list: List[KrxData]) -> None:
-        """
-        마스터 리포트 전체 업데이트 워크플로우
+    def update_reports(self, data_list: List[KrxData]) -> Dict[str, List[str]]:
+        """마스터 리포트 전체 업데이트 워크플로우
         
         Args:
             data_list: 업데이트할 KRX 데이터 리스트
+            
+        Returns:
+            각 리포트의 Top 20 종목 딕셔너리
         """
         print(f"[Service:MasterReport] 마스터 리포트 업데이트 시작...")
+        
+        top_stocks_map = {}
         
         for item in data_list:
             if item.data.empty:
@@ -64,21 +68,25 @@ class MasterReportService:
             
             try:
                 report_date = datetime.datetime.strptime(item.date_str, '%Y%m%d').date()
-                self._update_single_report(item.key, item.data, report_date)
+                top_stocks = self._update_single_report(item.key, item.data, report_date)
+                if top_stocks:
+                    top_stocks_map[item.key] = top_stocks
             except Exception as e:
                 print(f"  [Service:MasterReport] 🚨 {item.key} 업데이트 실패: {e}")
+        
+        return top_stocks_map
     
     def _update_single_report(
         self,
         report_key: str,
         daily_data: pd.DataFrame,
         report_date: datetime.date
-    ) -> bool:
-        """단일 리포트를 업데이트합니다."""
+    ) -> List[str]:
+        """단일 리포트를 업데이트하고 Top 20 종목을 반환합니다."""
         file_name = self.file_map.get(report_key)
         if not file_name:
             print(f"    -> [Service:MasterReport] 🚨 알 수 없는 리포트 키: {report_key}")
-            return False
+            return []
         
         file_path = f"{self.master_subdir}/{file_name}"
         sheet_name = report_date.strftime('%b').upper()
@@ -87,29 +95,23 @@ class MasterReportService:
         
         print(f"    -> [Service:MasterReport] {file_name} 업데이트 시작...")
         
-        # 1. 데이터 변환
         new_data = self.data_service.transform_to_excel_schema(daily_data, date_int)
-        
-        # 2. 기존 데이터 로드
         existing_data = self._load_existing_data(file_path, sheet_name)
         sheet_exists = not existing_data.empty or self.storage.path_exists(file_path)
         
-        # 3. 중복 검사
         if self.data_service.check_duplicate_date(existing_data, date_int):
             new_data = pd.DataFrame(columns=self.data_service.excel_columns)
             print(f"    -> [Service:MasterReport] 데이터 추가 건너뜀 (피벗은 생성)")
         
-        # 4. 병합
         merged_data = self.data_service.merge_data(existing_data, new_data)
-        
-        # 5. 피벗 계산
         pivot_data = self.data_service.calculate_pivot(merged_data, date_int)
         
-        # 6. 저장
-        return self.workbook_adapter.save_workbook(
+        self.workbook_adapter.save_workbook(
             file_path, sheet_name, pivot_sheet_name,
             new_data, pivot_data, date_int, sheet_exists
         )
+        
+        return self.data_service.extract_top_stocks(pivot_data, top_n=20)
     
     def _load_existing_data(
         self, 

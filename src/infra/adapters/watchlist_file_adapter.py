@@ -113,21 +113,29 @@ class WatchlistFileAdapter(WatchlistPort):
                 all_stock_names.extend(top_stocks[key])
         
         if not all_stock_names:
-            print(f"  [Adapter:WatchlistFile] ⚠️ 저장할 {description}이 없습니다")
+            print(f"  [Adapter:WatchlistFile] ⚠️ 저장할 {description}이 없습니다")
             return
         
         # DataFrame 생성 (헤더: 종목명)
         df = pd.DataFrame({'종목명': all_stock_names})
+        
+        # 👇 추가: 각 행 끝에 쉼표(,)를 붙이기 위해 빈 문자열의 '쉼표' 열을 추가합니다.
+        # 이렇게 하면 CSV 저장 시 '종목명,쉼표' 형태가 되고, '종목명,,' 형태로 저장되어 
+        # HTS 포맷 요구사항(종목명 다음에 데이터 없는 필드)을 만족하거나,
+        # '종목명' 열만 사용하고 나머지 빈 필드를 위해 쉼표를 명시적으로 추가하는 효과를 낼 수 있습니다.
+        # HTS 포맷에 따라 '쉼표' 열의 이름을 빈 문자열로 설정할 수도 있습니다.
+        df[''] = '' # 빈 헤더의 열을 추가하여 CSV에 추가 쉼표를 생성
         
         # 저장
         file_path = f"watchlist/{filename}"
         success = self.storage.save_dataframe_csv(
             df,
             path=file_path,
+            # '종목명'과 빈 헤더를 모두 저장하기 위해 header=True 유지
             header=True,
             index=False,
             encoding='cp949'
         )
         
         if success:
-            print(f"  [Adapter:WatchlistFile] ✅ {description} 파일 저장 완료: {filename} ({len(df)}개 종목)")
+            print(f"  [Adapter:WatchlistFile] ✅ {description} 파일 저장 완료: {filename} ({len(df)}개 종목)")

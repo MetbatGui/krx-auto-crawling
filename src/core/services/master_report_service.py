@@ -95,6 +95,19 @@ class MasterReportService:
         
         print(f"    -> [Service:MasterReport] {file_name} 업데이트 시작...")
         
+        # 0. 피벗 시트 존재 여부 확인 (스킵 로직)
+        if self.storage.path_exists(file_path):
+            try:
+                full_path = Path(self.storage.base_path) / file_path
+                xl = pd.ExcelFile(full_path, engine='openpyxl')
+                if pivot_sheet_name in xl.sheet_names:
+                    print(f"    -> [Service:MasterReport] ⚠️ {pivot_sheet_name} 피벗 시트가 이미 존재하여 업데이트를 건너뜁니다.")
+                    # 기존 피벗 데이터 로드 (Top 20 추출용)
+                    existing_pivot = pd.read_excel(full_path, sheet_name=pivot_sheet_name, engine='openpyxl')
+                    return self.data_service.extract_top_stocks(existing_pivot, top_n=20)
+            except Exception as e:
+                print(f"    -> [Service:MasterReport] 피벗 시트 확인 중 오류 (무시하고 진행): {e}")
+        
         new_data = self.data_service.transform_to_excel_schema(daily_data, date_int)
         existing_data = self._load_existing_data(file_path, sheet_name)
         sheet_exists = not existing_data.empty or self.storage.path_exists(file_path)

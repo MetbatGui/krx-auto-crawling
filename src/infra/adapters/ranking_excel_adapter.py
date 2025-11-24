@@ -100,8 +100,14 @@ class RankingExcelAdapter(RankingReportPort):
         self._apply_autofit(sheet)
     
     def _update_headers(self, sheet: Worksheet, report_date: datetime.date):
-        """헤더를 업데이트합니다."""
-        sheet['A5'] = report_date.strftime('%Y-%m-%d')
+        """헤더를 업데이트합니다.
+        
+        A3: 월 (예: "11 月")
+        A5: 일 (예: "21 日")
+        B5: 요일 (예: "금")
+        """
+        sheet['A3'] = f"{report_date.month} 月"
+        sheet['A5'] = f"{report_date.day} 日"
         sheet['B5'] = self.KOREAN_WEEKDAYS[report_date.weekday()]
     
     def _clear_data_area(self, sheet: Worksheet):

@@ -69,11 +69,15 @@ class KrxFetchService:
             return pd.DataFrame()
 
         try:
-            # CSV 파싱 (KRX는 EUC-KR 인코딩 사용)
-            df = pd.read_csv(io.BytesIO(excel_bytes), encoding='euc-kr')
+            # 엑셀 파일 시그니처(PK) 확인
+            if excel_bytes.startswith(b'PK'):
+                df = pd.read_excel(io.BytesIO(excel_bytes))
+            else:
+                # CSV 파싱 (KRX는 CP949 인코딩 사용, 에러 무시)
+                df = pd.read_csv(io.BytesIO(excel_bytes), encoding='cp949', encoding_errors='replace')
                 
         except Exception as e:
-            print(f"  [Service:KrxFetch] 🚨 CSV 파싱 중 오류: {e}")
+            print(f"  [Service:KrxFetch] 🚨 데이터 파싱 중 오류: {e}")
             return pd.DataFrame()
 
         # --- 데이터 가공 (순매수 거래대금 상위 20) ---

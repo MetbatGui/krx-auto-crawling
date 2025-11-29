@@ -42,3 +42,8 @@ All commits must follow the format below to ensure a clean and readable history.
 - OAuth 2.0 인증 흐름 구현 (client_secret.json 사용)
 - FallbackStorageAdapter를 통한 랭킹 리포트 로딩 안정성 확보
 ```
+
+## Language Guidelines
+
+*   **Language**: Always **think and speak in Korean**.
+

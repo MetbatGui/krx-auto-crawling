@@ -296,3 +296,42 @@ class GoogleDriveAdapter(StoragePort):
         except Exception as e:
             print(f"[GoogleDrive] 🚨 DataFrame 로드 실패 ({path}): {e}")
             return pd.DataFrame()
+
+    def get_file(self, path: str) -> Optional[bytes]:
+        """파일의 내용을 바이트로 읽어옵니다 (다운로드)."""
+        try:
+            file_id = self._get_file_id(path)
+            if not file_id:
+                return None
+
+            request = self.drive_service.files().get_media(fileId=file_id)
+            fh = io.BytesIO()
+            downloader = MediaIoBaseDownload(fh, request)
+            done = False
+            while done is False:
+                status, done = downloader.next_chunk()
+
+            fh.seek(0)
+            return fh.read()
+        except Exception as e:
+            print(f"[GoogleDrive] 🚨 파일 다운로드 실패 ({path}): {e}")
+            return None
+
+    def put_file(self, path: str, data: bytes) -> bool:
+        """바이트 데이터를 파일로 저장합니다 (업로드)."""
+        try:
+            # MIME 타입 추론 (간단하게)
+            if path.endswith('.xlsx'):
+                mime_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            elif path.endswith('.csv'):
+                mime_type = 'text/csv'
+            else:
+                mime_type = 'application/octet-stream'
+
+            output = io.BytesIO(data)
+            self._upload_file(output, path, mime_type)
+            print(f"[GoogleDrive] ✅ 파일 업로드: {path}")
+            return True
+        except Exception as e:
+            print(f"[GoogleDrive] 🚨 파일 업로드 실패 ({path}): {e}")
+            return False

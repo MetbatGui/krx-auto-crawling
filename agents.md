@@ -46,4 +46,5 @@ All commits must follow the format below to ensure a clean and readable history.
 ## Language Guidelines
 
 *   **Language**: Always **think and speak in Korean**.
+*   **Artifacts**: All artifacts (plans, reports, docs) must be written in **Korean**.
 

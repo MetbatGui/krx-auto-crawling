@@ -68,3 +68,16 @@ class FallbackStorageAdapter(StoragePort):
 
     def save_workbook(self, book: openpyxl.Workbook, path: str) -> bool:
         return self.primary.save_workbook(book, path)
+
+    def get_file(self, path: str) -> Optional[bytes]:
+        """Primary에서 로드 시도, 실패 시 Secondary에서 로드"""
+        if self.primary.path_exists(path):
+            data = self.primary.get_file(path)
+            if data:
+                return data
+        
+        return self.secondary.get_file(path)
+
+    def put_file(self, path: str, data: bytes) -> bool:
+        """Primary에만 저장"""
+        return self.primary.put_file(path, data)

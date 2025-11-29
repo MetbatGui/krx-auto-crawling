@@ -114,3 +114,30 @@ class StoragePort(ABC):
             로드된 DataFrame (실패 시 빈 DataFrame 반환 권장)
         """
         pass
+
+    @abstractmethod
+    def get_file(self, path: str) -> Optional[bytes]:
+        """
+        파일의 내용을 바이트로 읽어옵니다.
+        
+        Args:
+            path: 파일 경로 (상대 경로)
+            
+        Returns:
+            파일 내용 (bytes) 또는 None (파일이 없는 경우)
+        """
+        pass
+
+    @abstractmethod
+    def put_file(self, path: str, data: bytes) -> bool:
+        """
+        바이트 데이터를 파일로 저장합니다.
+        
+        Args:
+            path: 저장 경로 (상대 경로)
+            data: 저장할 데이터 (bytes)
+            
+        Returns:
+            성공 여부
+        """
+        pass

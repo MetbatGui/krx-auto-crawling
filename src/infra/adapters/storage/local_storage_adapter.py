@@ -158,3 +158,30 @@ class LocalStorageAdapter(StoragePort):
         except Exception as e:
             print(f"[LocalStorage] 🚨 DataFrame 로드 실패 ({path}): {e}")
             return pd.DataFrame()
+
+    def get_file(self, path: str) -> Optional[bytes]:
+        """파일의 내용을 바이트로 읽어옵니다."""
+        try:
+            full_path = self.base_path / path
+            if not full_path.exists():
+                return None
+            
+            with open(full_path, 'rb') as f:
+                return f.read()
+        except Exception as e:
+            print(f"[LocalStorage] 🚨 파일 읽기 실패 ({path}): {e}")
+            return None
+
+    def put_file(self, path: str, data: bytes) -> bool:
+        """바이트 데이터를 파일로 저장합니다."""
+        try:
+            full_path = self.base_path / path
+            self.ensure_directory(str(full_path.parent.relative_to(self.base_path)))
+            
+            with open(full_path, 'wb') as f:
+                f.write(data)
+            print(f"[LocalStorage] ✅ 파일 저장: {path}")
+            return True
+        except Exception as e:
+            print(f"[LocalStorage] 🚨 파일 저장 실패 ({path}): {e}")
+            return False

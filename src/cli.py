@@ -53,18 +53,13 @@ def crawl(
     SERVICE_ACCOUNT_FILE = "secrets/service-account.json"
     CLIENT_SECRET_FILE = "secrets/client_secret.json"
     
-    typer.echo(f"--- [CLI] KRX Auto Crawling System Initializing (Target: {target_date}) ---")
-    if drive:
-        typer.echo(f"--- [CLI] Storage Mode: Local + Google Drive ---")
-    else:
-        typer.echo(f"--- [CLI] Storage Mode: Local Only ---")
-
     # 4. StoragePort 인스턴스 생성
-    local_storage = LocalStorageAdapter(base_path=BASE_OUTPUT_PATH)
-    
-    # Google Drive 어댑터 생성 (옵션이 켜져 있고 설정 파일이 있을 경우에만)
-    drive_storage = None
+    # 모드에 따라 배타적으로 동작 (Local Only OR Drive Only)
+    save_storages = []
+    source_storage = None
+
     if drive:
+        # Google Drive Mode
         root_folder_id = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID")
         try:
             if os.path.exists(CLIENT_SECRET_FILE):
@@ -80,25 +75,23 @@ def crawl(
                     root_folder_id=root_folder_id
                 )
             else:
-                print(f"⚠️ [CLI] Google Drive 인증 파일 없음 (secrets/client_secret.json 또는 service-account.json 필요)")
-                
+                typer.echo(f"🚨 [CLI] Google Drive 인증 파일 없음 (secrets/client_secret.json 또는 service-account.json 필요)", err=True)
+                raise typer.Exit(code=1)
+            
+            typer.echo(f"--- [CLI] Storage Mode: Google Drive Only ---")
+            save_storages = [drive_storage]
+            source_storage = drive_storage
+
         except Exception as e:
-            print(f"⚠️ [CLI] Google Drive 초기화 실패: {e}")
-
-    # 저장소 리스트 구성 (Local + Drive)
-    save_storages = [local_storage]
-    if drive_storage:
-        save_storages.append(drive_storage)
-
-    # 읽기 전용 Fallback 저장소 구성 (Drive 우선, 없으면 Local)
-    # Master Report와 Ranking Report의 기존 데이터 로드에 사용됨
-    if drive_storage:
-        fallback_source_storage = FallbackStorageAdapter(
-            primary=drive_storage,
-            secondary=local_storage
-        )
+            typer.echo(f"🚨 [CLI] Google Drive 초기화 실패: {e}", err=True)
+            raise typer.Exit(code=1)
+            
     else:
-        fallback_source_storage = local_storage
+        # Local Mode (Default)
+        typer.echo(f"--- [CLI] Storage Mode: Local Only ---")
+        local_storage = LocalStorageAdapter(base_path=BASE_OUTPUT_PATH)
+        save_storages = [local_storage]
+        source_storage = local_storage
 
     # 5. 어댑터(Adapters) 인스턴스 생성 및 의존성 주입
     # (Infra Layer)
@@ -110,7 +103,7 @@ def crawl(
     master_sheet_adapter = MasterSheetAdapter()
     master_pivot_sheet_adapter = MasterPivotSheetAdapter()
     master_workbook_adapter = MasterWorkbookAdapter(
-        source_storage=fallback_source_storage, # Master는 Fallback Storage 사용
+        source_storage=source_storage, 
         target_storages=save_storages,
         sheet_adapter=master_sheet_adapter,
         pivot_sheet_adapter=master_pivot_sheet_adapter
@@ -121,7 +114,7 @@ def crawl(
     fetch_service = KrxFetchService(krx_port=krx_adapter)
     master_data_service = MasterDataService()
     master_service = MasterReportService(
-        source_storage=fallback_source_storage, # Master는 Fallback Storage 사용
+        source_storage=source_storage, 
         target_storages=save_storages,
         data_service=master_data_service,
         workbook_adapter=master_workbook_adapter,
@@ -131,7 +124,7 @@ def crawl(
     # Ranking 서비스 조립 (헥사고날 아키텍처)
     ranking_data_service = RankingDataService(top_n=20)
     ranking_report_adapter = RankingExcelAdapter(
-        source_storage=fallback_source_storage, # Ranking도 Fallback Storage 사용
+        source_storage=source_storage, 
         target_storages=save_storages,
         file_name="2025년/일별수급정리표/2025일별수급순위정리표.xlsx"
     )

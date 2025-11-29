@@ -1,0 +1,159 @@
+import typer
+import datetime
+import os
+import sys
+from typing import Optional
+from dotenv import load_dotenv
+
+# Services
+from core.services.daily_routine_service import DailyRoutineService
+from core.services.krx_fetch_service import KrxFetchService
+from core.services.master_report_service import MasterReportService
+from core.services.master_data_service import MasterDataService
+from core.services.ranking_analysis_service import RankingAnalysisService
+from core.services.ranking_data_service import RankingDataService
+
+# Adapters
+from infra.adapters.storage import LocalStorageAdapter
+from infra.adapters.storage.fallback_storage_adapter import FallbackStorageAdapter
+from infra.adapters.storage.google_drive_adapter import GoogleDriveAdapter
+from infra.adapters.krx_http_adapter import KrxHttpAdapter
+from infra.adapters.daily_excel_adapter import DailyExcelAdapter
+from infra.adapters.watchlist_file_adapter import WatchlistFileAdapter
+from infra.adapters.ranking_excel_adapter import RankingExcelAdapter
+from infra.adapters.excel.master_workbook_adapter import MasterWorkbookAdapter
+from infra.adapters.excel.master_sheet_adapter import MasterSheetAdapter
+from infra.adapters.excel.master_pivot_sheet_adapter import MasterPivotSheetAdapter
+
+app = typer.Typer(help="KRX Auto Crawling CLI")
+
+@app.command()
+def crawl(
+    date: Optional[str] = typer.Argument(None, help="Target date in YYYYMMDD format (default: today)"),
+    drive: bool = typer.Option(False, "--drive", "-d", help="Save to Google Drive as well")
+):
+    """
+    Execute the daily crawling routine.
+    """
+    # 1. 환경 변수 로드
+    load_dotenv()
+    
+    # 2. 날짜 처리
+    if date:
+        target_date = date
+        # 간단한 날짜 형식 검증
+        if len(target_date) != 8 or not target_date.isdigit():
+            typer.echo(f"🚨 [CLI] Invalid date format: {target_date}. Please use YYYYMMDD.", err=True)
+            raise typer.Exit(code=1)
+    else:
+        target_date = datetime.date.today().strftime('%Y%m%d')
+
+    # 3. 기본 경로 및 설정
+    BASE_OUTPUT_PATH = "output"
+    SERVICE_ACCOUNT_FILE = "secrets/service-account.json"
+    CLIENT_SECRET_FILE = "secrets/client_secret.json"
+    
+    typer.echo(f"--- [CLI] KRX Auto Crawling System Initializing (Target: {target_date}) ---")
+    if drive:
+        typer.echo(f"--- [CLI] Storage Mode: Local + Google Drive ---")
+    else:
+        typer.echo(f"--- [CLI] Storage Mode: Local Only ---")
+
+    # 4. StoragePort 인스턴스 생성
+    local_storage = LocalStorageAdapter(base_path=BASE_OUTPUT_PATH)
+    
+    # Google Drive 어댑터 생성 (옵션이 켜져 있고 설정 파일이 있을 경우에만)
+    drive_storage = None
+    if drive:
+        root_folder_id = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID")
+        try:
+            if os.path.exists(CLIENT_SECRET_FILE):
+                print(f"[CLI] OAuth 2.0 인증 사용 ({CLIENT_SECRET_FILE})")
+                drive_storage = GoogleDriveAdapter(
+                    client_secret_file=CLIENT_SECRET_FILE,
+                    root_folder_id=root_folder_id
+                )
+            elif os.path.exists(SERVICE_ACCOUNT_FILE):
+                print(f"[CLI] Service Account 인증 사용 ({SERVICE_ACCOUNT_FILE})")
+                drive_storage = GoogleDriveAdapter(
+                    service_account_file=SERVICE_ACCOUNT_FILE,
+                    root_folder_id=root_folder_id
+                )
+            else:
+                print(f"⚠️ [CLI] Google Drive 인증 파일 없음 (secrets/client_secret.json 또는 service-account.json 필요)")
+                
+        except Exception as e:
+            print(f"⚠️ [CLI] Google Drive 초기화 실패: {e}")
+
+    # 저장소 리스트 구성 (Local + Drive)
+    save_storages = [local_storage]
+    if drive_storage:
+        save_storages.append(drive_storage)
+
+    # 읽기 전용 Fallback 저장소 구성 (Drive 우선, 없으면 Local)
+    # Master Report와 Ranking Report의 기존 데이터 로드에 사용됨
+    if drive_storage:
+        fallback_source_storage = FallbackStorageAdapter(
+            primary=drive_storage,
+            secondary=local_storage
+        )
+    else:
+        fallback_source_storage = local_storage
+
+    # 5. 어댑터(Adapters) 인스턴스 생성 및 의존성 주입
+    # (Infra Layer)
+    krx_adapter = KrxHttpAdapter()
+    daily_adapter = DailyExcelAdapter(storages=save_storages)
+    watchlist_adapter = WatchlistFileAdapter(storages=save_storages)
+    
+    # Master 관련 어댑터들
+    master_sheet_adapter = MasterSheetAdapter()
+    master_pivot_sheet_adapter = MasterPivotSheetAdapter()
+    master_workbook_adapter = MasterWorkbookAdapter(
+        source_storage=fallback_source_storage, # Master는 Fallback Storage 사용
+        target_storages=save_storages,
+        sheet_adapter=master_sheet_adapter,
+        pivot_sheet_adapter=master_pivot_sheet_adapter
+    )
+
+    # 6. 서비스(Services) 인스턴스 생성 및 의존성 주입
+    # (Core Layer)
+    fetch_service = KrxFetchService(krx_port=krx_adapter)
+    master_data_service = MasterDataService()
+    master_service = MasterReportService(
+        source_storage=fallback_source_storage, # Master는 Fallback Storage 사용
+        target_storages=save_storages,
+        data_service=master_data_service,
+        workbook_adapter=master_workbook_adapter,
+        file_name_prefix="2025"
+    )
+    
+    # Ranking 서비스 조립 (헥사고날 아키텍처)
+    ranking_data_service = RankingDataService(top_n=20)
+    ranking_report_adapter = RankingExcelAdapter(
+        source_storage=fallback_source_storage, # Ranking도 Fallback Storage 사용
+        target_storages=save_storages,
+        file_name="2025년/일별수급정리표/2025일별수급순위정리표.xlsx"
+    )
+    ranking_service = RankingAnalysisService(
+        data_service=ranking_data_service,
+        report_port=ranking_report_adapter
+    )
+    
+    routine_service = DailyRoutineService(
+        fetch_service=fetch_service,
+        daily_port=daily_adapter,
+        master_port=master_service,
+        ranking_port=ranking_service,
+        watchlist_port=watchlist_adapter
+    )
+
+    # 7. 메인 루틴 실행
+    try:
+        routine_service.execute(date_str=target_date)
+    except Exception as e:
+        typer.echo(f"\n🚨 [CLI] Critical Error during execution: {e}", err=True)
+        raise typer.Exit(code=1)
+
+if __name__ == "__main__":
+    app()

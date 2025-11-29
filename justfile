@@ -2,6 +2,8 @@
 
 # Load .env file
 set dotenv-load
+# Use PowerShell on Windows
+set shell := ["powershell", "-c"]
 
 # Default: Show help
 default:

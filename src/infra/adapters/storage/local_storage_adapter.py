@@ -144,3 +144,17 @@ class LocalStorageAdapter(StoragePort):
         except Exception as e:
             print(f"[LocalStorage] 🚨 디렉토리 생성 실패 ({path}): {e}")
             return False
+
+    def load_dataframe(self, path: str, sheet_name: str = None, **kwargs) -> pd.DataFrame:
+        """Excel 파일에서 DataFrame을 로드합니다."""
+        try:
+            full_path = self.base_path / path
+            if not full_path.exists():
+                return pd.DataFrame()
+            
+            # sheet_name이 None이면 모든 시트를 dict로 반환하므로, 0(첫 번째 시트)으로 설정
+            target_sheet = 0 if sheet_name is None else sheet_name
+            return pd.read_excel(full_path, sheet_name=target_sheet, **kwargs)
+        except Exception as e:
+            print(f"[LocalStorage] 🚨 DataFrame 로드 실패 ({path}): {e}")
+            return pd.DataFrame()

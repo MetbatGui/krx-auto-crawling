@@ -99,3 +99,18 @@ class StoragePort(ABC):
             성공 여부
         """
         pass
+
+    @abstractmethod
+    def load_dataframe(self, path: str, sheet_name: str = None, **kwargs) -> pd.DataFrame:
+        """
+        Excel 파일에서 DataFrame을 로드합니다.
+
+        Args:
+            path: 파일 경로 (상대 경로)
+            sheet_name: 시트 이름 (None이면 첫 번째 시트)
+            **kwargs: pandas.read_excel()에 전달할 추가 인자
+
+        Returns:
+            로드된 DataFrame (실패 시 빈 DataFrame 반환 권장)
+        """
+        pass

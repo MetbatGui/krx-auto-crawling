@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.scripts]
-netbuy = "src.cli:app"
+netbuy = "cli:app"
 
 [build-system]
 requires = ["setuptools>=61.0"]

@@ -216,8 +216,8 @@ def download(
             files_to_download.append(path)
 
     # (2) Watchlist
-    # {Year}년/관심종목/{date}관심종목_Top20.csv
-    watchlist_path = f"{year}년/관심종목/{target_date}관심종목_Top20.csv"
+    # {Year}년/관심종목/{date}_일별상위종목.csv
+    watchlist_path = f"{year}년/관심종목/{target_date}_일별상위종목.csv"
     files_to_download.append(watchlist_path)
 
     # (3) Ranking Report

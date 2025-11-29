@@ -1,0 +1,14 @@
+services:
+  netbuy:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    volumes:
+      # Mount output directory to persist data
+      - ../output:/app/output
+      # Mount secrets directory for credentials
+      - ../secrets:/app/secrets
+    env_file:
+      - ../.env
+    # Keep container running for debugging if needed, or just run commands
+    # command: tail -f /dev/null 

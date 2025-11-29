@@ -1,0 +1,31 @@
+# Exclude output directory (generated data)
+output/
+
+# Exclude secrets (credentials)
+secrets/
+
+# Exclude virtual environments
+.venv/
+env/
+venv/
+
+# Exclude git directory
+.git/
+
+# Exclude cache
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.uv/
+
+# Exclude temporary files
+*.tmp
+*.log
+.DS_Store
+
+# Exclude docker directory itself (optional, but good practice if not needed in build context)
+# docker/ 
+# -> We need docker/Dockerfile if we build from root, but here context is root and dockerfile is in docker/.
+# If we exclude docker/, the builder might not find the Dockerfile if it's passed as argument but excluded from context? 
+# Actually Dockerfile path is separate from context. But usually we don't need docker config inside the image.

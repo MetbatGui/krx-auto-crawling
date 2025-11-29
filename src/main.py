@@ -14,6 +14,8 @@ from core.services.ranking_data_service import RankingDataService
 
 # Adapters
 from infra.adapters.storage import LocalStorageAdapter
+from infra.adapters.storage.fallback_storage_adapter import FallbackStorageAdapter
+from infra.adapters.storage.google_drive_adapter import GoogleDriveAdapter
 from infra.adapters.krx_http_adapter import KrxHttpAdapter
 from infra.adapters.daily_excel_adapter import DailyExcelAdapter
 from infra.adapters.watchlist_file_adapter import WatchlistFileAdapter
@@ -57,25 +59,56 @@ def main():
     else:
         target_date = datetime.date.today().strftime('%Y%m%d')
 
-    # 3. 기본 경로 설정
+    # 3. 기본 경로 및 설정
     BASE_OUTPUT_PATH = "output"
+    SERVICE_ACCOUNT_FILE = "secrets/service-account.json"
+    CLIENT_SECRET_FILE = "secrets/client_secret.json"
     
     print(f"--- [Main] KRX Auto Crawling System Initializing (Target: {target_date}) ---")
 
     # 4. StoragePort 인스턴스 생성
-    storage = LocalStorageAdapter(base_path=BASE_OUTPUT_PATH)
+    local_storage = LocalStorageAdapter(base_path=BASE_OUTPUT_PATH)
+    
+    # Google Drive 어댑터 생성 (설정 파일이 있을 경우에만)
+    drive_storage = None
+    root_folder_id = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID")
+
+    try:
+        if os.path.exists(CLIENT_SECRET_FILE):
+            print(f"[Main] OAuth 2.0 인증 사용 ({CLIENT_SECRET_FILE})")
+            drive_storage = GoogleDriveAdapter(
+                client_secret_file=CLIENT_SECRET_FILE,
+                root_folder_id=root_folder_id
+            )
+        elif os.path.exists(SERVICE_ACCOUNT_FILE):
+            print(f"[Main] Service Account 인증 사용 ({SERVICE_ACCOUNT_FILE})")
+            drive_storage = GoogleDriveAdapter(
+                service_account_file=SERVICE_ACCOUNT_FILE,
+                root_folder_id=root_folder_id
+            )
+        else:
+            print(f"⚠️ [Main] Google Drive 인증 파일 없음 (secrets/client_secret.json 또는 service-account.json 필요)")
+            
+    except Exception as e:
+        print(f"⚠️ [Main] Google Drive 초기화 실패: {e}")
+
+    # 저장소 리스트 구성 (Local + Drive)
+    save_storages = [local_storage]
+    if drive_storage:
+        save_storages.append(drive_storage)
 
     # 5. 어댑터(Adapters) 인스턴스 생성 및 의존성 주입
     # (Infra Layer)
     krx_adapter = KrxHttpAdapter()
-    daily_adapter = DailyExcelAdapter(storage=storage)
-    watchlist_adapter = WatchlistFileAdapter(storage=storage)
+    daily_adapter = DailyExcelAdapter(storages=save_storages)
+    watchlist_adapter = WatchlistFileAdapter(storages=save_storages)
     
     # Master 관련 어댑터들
     master_sheet_adapter = MasterSheetAdapter()
     master_pivot_sheet_adapter = MasterPivotSheetAdapter()
     master_workbook_adapter = MasterWorkbookAdapter(
-        storage=storage,
+        source_storage=local_storage, # Master는 로컬 원본 기준
+        target_storages=save_storages,
         sheet_adapter=master_sheet_adapter,
         pivot_sheet_adapter=master_pivot_sheet_adapter
     )
@@ -85,16 +118,27 @@ def main():
     fetch_service = KrxFetchService(krx_port=krx_adapter)
     master_data_service = MasterDataService()
     master_service = MasterReportService(
-        storage=storage,
+        source_storage=local_storage, # Master는 로컬 원본 기준
+        target_storages=save_storages,
         data_service=master_data_service,
         workbook_adapter=master_workbook_adapter,
         file_name_prefix="2025"
     )
     
     # Ranking 서비스 조립 (헥사고날 아키텍처)
+    # Ranking Report는 구글 드라이브 우선, 없으면 로컬 (Fallback)
+    if drive_storage:
+        ranking_source_storage = FallbackStorageAdapter(
+            primary=drive_storage,
+            secondary=local_storage
+        )
+    else:
+        ranking_source_storage = local_storage
+    
     ranking_data_service = RankingDataService(top_n=20)
     ranking_report_adapter = RankingExcelAdapter(
-        storage=storage,
+        source_storage=ranking_source_storage,
+        target_storages=save_storages,
         file_name="2025일별수급순위정리표.xlsx"
     )
     ranking_service = RankingAnalysisService(

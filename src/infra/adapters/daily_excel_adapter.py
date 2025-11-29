@@ -1,7 +1,5 @@
 import pandas as pd
 from typing import List
-import pandas as pd
-from typing import List
 
 from core.ports.daily_report_port import DailyReportPort
 from core.ports.storage_port import StoragePort
@@ -14,7 +12,7 @@ class DailyExcelAdapter(DailyReportPort):
     DataFrame을 일별 엑셀 파일로 저장합니다.
 
     Attributes:
-        storage (StoragePort): 파일 저장 포트
+        storages (List[StoragePort]): 파일 저장 포트 리스트
     """
     
     NAME_MAP = {
@@ -24,15 +22,16 @@ class DailyExcelAdapter(DailyReportPort):
         'KOSDAQ_institutions': '코스닥기관',
     }
 
-    def __init__(self, storage: StoragePort):
+    def __init__(self, storages: List[StoragePort]):
         """DailyExcelAdapter 초기화.
 
         Args:
-            storage: StoragePort 구현체 (LocalStorageAdapter 등)
+            storages: StoragePort 구현체 리스트 (예: [LocalStorageAdapter, GoogleDriveAdapter])
         """
-        self.storage = storage
-        self.storage.ensure_directory("순매수")
-        print(f"[Adapter:DailyExcel] 초기화 완료")
+        self.storages = storages
+        for storage in self.storages:
+            storage.ensure_directory("순매수")
+        print(f"[Adapter:DailyExcel] 초기화 완료 (저장소 {len(self.storages)}개)")
 
     def save_daily_reports(self, data_list: List[KrxData]) -> None:
         """수집된 데이터 리스트를 각각의 일별 엑셀 파일로 저장합니다.
@@ -58,11 +57,12 @@ class DailyExcelAdapter(DailyReportPort):
                      # 쉼표 포맷팅을 위해 문자열로 변환
                     df_to_save['거래대금_순매수'] = df_to_save['거래대금_순매수'].apply(lambda x: f"{x:,}")
 
-                # StoragePort를 통해 저장
-                success = self.storage.save_dataframe_excel(df_to_save, path=filename, index=False)
-                
-                if success:
-                    print(f"  [Adapter:DailyExcel] ✅ 저장 완료: {item.date_str}{korean_name_part}순매수.xlsx")
+                # 모든 StoragePort를 통해 저장
+                for storage in self.storages:
+                    success = storage.save_dataframe_excel(df_to_save, path=filename, index=False)
+                    if success:
+                        storage_name = storage.__class__.__name__
+                        print(f"  [Adapter:DailyExcel] ✅ {storage_name} 저장 완료: {filename}")
 
             except Exception as e:
                 print(f"  [Adapter:DailyExcel] 🚨 {item.key} 저장 실패: {e}")

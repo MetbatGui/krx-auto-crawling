@@ -6,7 +6,7 @@ SheetAdapter와 PivotSheetAdapter를 조합하여 완전한 워크북 생성
 import pandas as pd
 import openpyxl
 from openpyxl.workbook.workbook import Workbook
-from typing import Optional
+from typing import Optional, List
 
 from core.ports.storage_port import StoragePort
 from infra.adapters.excel.master_sheet_adapter import MasterSheetAdapter
@@ -18,11 +18,13 @@ class MasterWorkbookAdapter:
     
     def __init__(
         self,
-        storage: StoragePort,
+        source_storage: StoragePort,
+        target_storages: List[StoragePort],
         sheet_adapter: MasterSheetAdapter,
         pivot_sheet_adapter: MasterPivotSheetAdapter
     ):
-        self.storage = storage
+        self.source_storage = source_storage
+        self.target_storages = target_storages
         self.sheet_adapter = sheet_adapter
         self.pivot_sheet_adapter = pivot_sheet_adapter
     
@@ -49,11 +51,11 @@ class MasterWorkbookAdapter:
             sheet_exists: Raw 시트 존재 여부
             
         Returns:
-            저장 성공 여부
+            저장 성공 여부 (모두 성공 시 True)
         """
         try:
-            # 1. 워크북 로드 또는 생성
-            book = self.storage.load_workbook(file_path)
+            # 1. 워크북 로드 또는 생성 (Source Storage 사용)
+            book = self.source_storage.load_workbook(file_path)
             if book is None:
                 book = openpyxl.Workbook()
                 if 'Sheet' in book.sheetnames:
@@ -69,13 +71,22 @@ class MasterWorkbookAdapter:
                 pivot_data, date_int
             )
             
-            # 4. 저장
-            success = self.storage.save_workbook(book, file_path)
-            if success:
-                print(f"    -> [Adapter:MasterWorkbook] ✅ Excel 파일 저장 완료")
-                if not pivot_data.empty:
-                    print(f"    -> [Adapter:MasterWorkbook] 피벗 샘플:\n{pivot_data.head()}")
-            return success
+            # 4. 저장 (Target Storages 모두에 저장)
+            all_success = True
+            for storage in self.target_storages:
+                success = storage.save_workbook(book, file_path)
+                if success:
+                    print(f"    -> [Adapter:MasterWorkbook] ✅ {storage.__class__.__name__} 저장 완료")
+                    if not pivot_data.empty:
+                        # 로그는 한 번만 출력하거나 저장소별로 출력
+                        pass
+                else:
+                    all_success = False
+            
+            if not pivot_data.empty:
+                 print(f"    -> [Adapter:MasterWorkbook] 피벗 샘플:\n{pivot_data.head()}")
+
+            return all_success
             
         except Exception as e:
             print(f"    -> [Adapter:MasterWorkbook] 🚨 워크북 저장 실패: {e}")

@@ -28,7 +28,8 @@ class MasterReportService:
     
     def __init__(
         self,
-        storage: StoragePort,
+        source_storage: StoragePort,
+        target_storages: List[StoragePort],
         data_service: MasterDataService,
         workbook_adapter: MasterWorkbookAdapter,
         file_name_prefix: str = "2025"
@@ -36,12 +37,14 @@ class MasterReportService:
         """MasterReportService 초기화.
 
         Args:
-            storage: 파일 저장/로드 포트
+            source_storage: 데이터 로드용 저장소 (예: LocalStorageAdapter)
+            target_storages: 데이터 저장용 저장소 리스트 (예: [LocalStorage, GoogleDrive])
             data_service: 데이터 처리 서비스
             workbook_adapter: 워크북 어댑터
             file_name_prefix: 파일명 연도 접두사
         """
-        self.storage = storage
+        self.source_storage = source_storage
+        self.target_storages = target_storages
         self.data_service = data_service
         self.workbook_adapter = workbook_adapter
         
@@ -55,8 +58,9 @@ class MasterReportService:
             'KOSDAQ_institutions': f'코스닥기관순매수도{year_suffix}.xlsx',
         }
         
-        # 순매수도 디렉토리 생성
-        self.storage.ensure_directory(self.master_subdir)
+        # 순매수도 디렉토리 생성 (모든 타겟 저장소에)
+        for storage in self.target_storages:
+            storage.ensure_directory(self.master_subdir)
     
     def update_reports(self, data_list: List[KrxData]) -> Dict[str, List[str]]:
         """마스터 리포트 전체 업데이트 워크플로우를 실행합니다.
@@ -121,16 +125,19 @@ class MasterReportService:
 
     def _check_existing_pivot(self, file_path: str, pivot_sheet_name: str) -> Optional[List[str]]:
         """이미 존재하는 피벗 시트가 있는지 확인하고, 있다면 Top 20 종목을 반환합니다."""
-        if not self.storage.path_exists(file_path):
+        if not self.source_storage.path_exists(file_path):
             return None
             
         try:
-            full_path = Path(self.storage.base_path) / file_path
-            xl = pd.ExcelFile(full_path, engine='openpyxl')
+            # load_dataframe을 사용하여 시트 로드 시도
+            existing_pivot = self.source_storage.load_dataframe(
+                file_path, 
+                sheet_name=pivot_sheet_name,
+                engine='openpyxl'
+            )
             
-            if pivot_sheet_name in xl.sheet_names:
+            if not existing_pivot.empty:
                 print(f"    -> [Service:MasterReport] ⚠️ {pivot_sheet_name} 피벗 시트가 이미 존재하여 업데이트를 건너뜁니다.")
-                existing_pivot = pd.read_excel(full_path, sheet_name=pivot_sheet_name, engine='openpyxl')
                 return self.data_service.extract_top_stocks(existing_pivot, top_n=20)
                 
         except Exception as e:
@@ -149,7 +156,7 @@ class MasterReportService:
         """실제 데이터 업데이트 및 피벗 생성 로직을 수행합니다."""
         new_data = self.data_service.transform_to_excel_schema(daily_data, date_int)
         existing_data = self._load_existing_data(file_path, sheet_name)
-        sheet_exists = not existing_data.empty or self.storage.path_exists(file_path)
+        sheet_exists = not existing_data.empty or self.source_storage.path_exists(file_path)
         
         if self.data_service.check_duplicate_date(existing_data, date_int):
             new_data = pd.DataFrame(columns=self.data_service.excel_columns)
@@ -171,15 +178,13 @@ class MasterReportService:
         sheet_name: str
     ) -> pd.DataFrame:
         """기존 엑셀 데이터를 로드합니다."""
-        if not self.storage.path_exists(file_path):
+        if not self.source_storage.path_exists(file_path):
             print(f"    -> [Service:MasterReport] 새 파일이 생성됩니다")
             return pd.DataFrame(columns=self.data_service.excel_columns)
             
         try:
-            full_path = Path(self.storage.base_path) / file_path
-            
-            df = pd.read_excel(
-                full_path,
+            df = self.source_storage.load_dataframe(
+                file_path,
                 sheet_name=sheet_name,
                 engine='openpyxl',
                 skiprows=1,
@@ -191,7 +196,7 @@ class MasterReportService:
                 print(f"    -> [Service:MasterReport] 기존 '{sheet_name}' 시트 데이터 ({len(result)}줄) 로드 완료")
                 return result
             else:
-                print(f"    -> [Service:MasterReport] ⚠️ {sheet_name} 시트 헤더가 손상됨")
+                print(f"    -> [Service:MasterReport] ⚠️ {sheet_name} 시트 헤더가 손상됨 (또는 없음)")
                 return pd.DataFrame(columns=self.data_service.excel_columns)
                 
         except (FileNotFoundError, ValueError, KeyError) as e:

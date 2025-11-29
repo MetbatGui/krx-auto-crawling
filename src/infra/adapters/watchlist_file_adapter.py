@@ -2,10 +2,6 @@
 
 import pandas as pd
 from typing import List, Dict
-"""Watchlist 파일 저장 어댑터"""
-
-import pandas as pd
-from typing import List, Dict
 
 from core.ports.watchlist_port import WatchlistPort
 from core.ports.storage_port import StoragePort
@@ -18,21 +14,22 @@ class WatchlistFileAdapter(WatchlistPort):
     일별/누적 상위 종목을 HTS 업로드용 CSV 파일로 저장합니다.
 
     Attributes:
-        storage (StoragePort): 파일 저장 포트
+        storages (List[StoragePort]): 파일 저장 포트 리스트
     """
     
     REPORT_ORDER = ['KOSPI_foreigner', 'KOSDAQ_foreigner', 'KOSPI_institutions', 'KOSDAQ_institutions']
     TOP_N = 20
     
-    def __init__(self, storage: StoragePort):
+    def __init__(self, storages: List[StoragePort]):
         """WatchlistFileAdapter 초기화.
 
         Args:
-            storage: StoragePort 구현체
+            storages: StoragePort 구현체 리스트
         """
-        self.storage = storage
-        self.storage.ensure_directory("watchlist")
-        print(f"[Adapter:WatchlistFile] 초기화 완료")
+        self.storages = storages
+        for storage in self.storages:
+            storage.ensure_directory("watchlist")
+        print(f"[Adapter:WatchlistFile] 초기화 완료 (저장소 {len(self.storages)}개)")
 
     def save_watchlist(self, data_list: List[KrxData]) -> None:
         """일별 상위 종목을 CSV 파일로 저장합니다.
@@ -113,7 +110,7 @@ class WatchlistFileAdapter(WatchlistPort):
                 all_stock_names.extend(top_stocks[key])
         
         if not all_stock_names:
-            print(f"  [Adapter:WatchlistFile] ⚠️ 저장할 {description}이 없습니다")
+            print(f"  [Adapter:WatchlistFile] ⚠️ 저장할 {description}이 없습니다")
             return
         
         # DataFrame 생성 (헤더: 종목명)
@@ -128,14 +125,17 @@ class WatchlistFileAdapter(WatchlistPort):
         
         # 저장
         file_path = f"watchlist/{filename}"
-        success = self.storage.save_dataframe_csv(
-            df,
-            path=file_path,
-            # '종목명'과 빈 헤더를 모두 저장하기 위해 header=True 유지
-            header=True,
-            index=False,
-            encoding='cp949'
-        )
         
-        if success:
-            print(f"  [Adapter:WatchlistFile] ✅ {description} 파일 저장 완료: {filename} ({len(df)}개 종목)")
+        for storage in self.storages:
+            success = storage.save_dataframe_csv(
+                df,
+                path=file_path,
+                # '종목명'과 빈 헤더를 모두 저장하기 위해 header=True 유지
+                header=True,
+                index=False,
+                encoding='cp949'
+            )
+            
+            if success:
+                storage_name = storage.__class__.__name__
+                print(f"  [Adapter:WatchlistFile] ✅ {storage_name} {description} 파일 저장 완료: {filename} ({len(df)}개 종목)")

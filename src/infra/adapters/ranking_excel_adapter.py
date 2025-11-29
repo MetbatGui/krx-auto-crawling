@@ -35,14 +35,16 @@ class RankingExcelAdapter(RankingReportPort):
     COLUMNS_TO_AUTOFIT = ['D', 'F', 'I', 'K']
     KOREAN_WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
     
-    def __init__(self, storage: StoragePort, file_name: str = "2025일별수급순위정리표.xlsx"):
+    def __init__(self, source_storage: StoragePort, target_storages: List[StoragePort], file_name: str = "2025일별수급순위정리표.xlsx"):
         """RankingExcelAdapter 초기화.
 
         Args:
-            storage: 파일 저장/로드를 위한 StoragePort
+            source_storage: 파일을 로드할 저장소 (예: GoogleDriveAdapter)
+            target_storages: 파일을 저장할 저장소 리스트 (예: [LocalStorageAdapter, GoogleDriveAdapter])
             file_name: Excel 파일명
         """
-        self.storage = storage
+        self.source_storage = source_storage
+        self.target_storages = target_storages
         self.file_path = file_name
         print(f"[Adapter:RankingExcel] 초기화 완료 (파일: {self.file_path})")
     
@@ -75,10 +77,11 @@ class RankingExcelAdapter(RankingReportPort):
         return self._save_workbook(book)
     
     def _load_workbook(self) -> Workbook | None:
-        """워크북을 로드합니다."""
-        book = self.storage.load_workbook(self.file_path)
+        """워크북을 로드합니다 (Source Storage 사용)."""
+        print(f"    -> [Adapter:RankingExcel] 로드 시도 ({self.source_storage.__class__.__name__})...")
+        book = self.source_storage.load_workbook(self.file_path)
         if not book or not book.worksheets:
-            print(f"    -> [Adapter:RankingExcel] 🚨 파일을 찾을 수 없습니다")
+            print(f"    -> [Adapter:RankingExcel] 🚨 파일을 찾을 수 없습니다: {self.file_path}")
             return None
         return book
     
@@ -164,8 +167,12 @@ class RankingExcelAdapter(RankingReportPort):
             sheet.column_dimensions[col].auto_size = True
     
     def _save_workbook(self, book: Workbook) -> bool:
-        """워크북을 저장합니다."""
-        success = self.storage.save_workbook(book, self.file_path)
-        if success:
-            print(f"    -> [Adapter:RankingExcel] ✅ 순위표 저장 완료")
-        return success
+        """워크북을 저장합니다 (Target Storages 사용)."""
+        all_success = True
+        for storage in self.target_storages:
+            success = storage.save_workbook(book, self.file_path)
+            if success:
+                print(f"    -> [Adapter:RankingExcel] ✅ {storage.__class__.__name__} 순위표 저장 완료")
+            else:
+                all_success = False
+        return all_success

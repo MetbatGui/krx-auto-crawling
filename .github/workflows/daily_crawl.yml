@@ -1,0 +1,31 @@
+name: Daily KRX Crawling
+
+on:
+  schedule:
+    # Run at 16:00 KST (07:00 UTC) on weekdays
+    - cron: '0 7 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Create secrets directory
+      run: mkdir -p secrets
+
+    - name: Create Service Account Key
+      # GitHub Secrets에서 서비스 계정 키를 가져와 파일로 생성
+      # Secret Name: GOOGLE_SERVICE_ACCOUNT_JSON
+      run: |
+        echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > secrets/service-account.json
+
+    - name: Build Docker Image
+      run: docker-compose -f docker/docker-compose.yml build
+
+    - name: Run Crawl (Drive Only)
+      # GitHub Actions 환경에서는 로컬 저장이 의미가 없으므로 Drive Only 모드 사용
+      run: docker-compose -f docker/docker-compose.yml run --rm netbuy crawl --drive

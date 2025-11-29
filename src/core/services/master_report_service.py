@@ -49,7 +49,7 @@ class MasterReportService:
         self.workbook_adapter = workbook_adapter
         
         # 파일 경로 설정
-        self.master_subdir = "순매수도"
+        self.master_subdir = f"{file_name_prefix}년"
         year_suffix = f"({file_name_prefix})"
         self.file_map: Dict[str, str] = {
             'KOSPI_foreigner': f'코스피외국인순매수도{year_suffix}.xlsx',

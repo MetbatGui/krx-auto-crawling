@@ -27,8 +27,7 @@ class WatchlistFileAdapter(WatchlistPort):
             storages: StoragePort 구현체 리스트
         """
         self.storages = storages
-        for storage in self.storages:
-            storage.ensure_directory("watchlist")
+        # 폴더는 저장 시점에 동적으로 생성되므로 초기화 시점에는 생성하지 않음
         print(f"[Adapter:WatchlistFile] 초기화 완료 (저장소 {len(self.storages)}개)")
 
     def save_watchlist(self, data_list: List[KrxData]) -> None:
@@ -124,7 +123,8 @@ class WatchlistFileAdapter(WatchlistPort):
         df[''] = '' # 빈 헤더의 열을 추가하여 CSV에 추가 쉼표를 생성
         
         # 저장
-        file_path = f"watchlist/{filename}"
+        year = date_str[:4]
+        file_path = f"{year}년/관심종목/{filename}"
         
         for storage in self.storages:
             success = storage.save_dataframe_csv(

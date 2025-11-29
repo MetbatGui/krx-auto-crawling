@@ -97,6 +97,16 @@ def main():
     if drive_storage:
         save_storages.append(drive_storage)
 
+    # 읽기 전용 Fallback 저장소 구성 (Drive 우선, 없으면 Local)
+    # Master Report와 Ranking Report의 기존 데이터 로드에 사용됨
+    if drive_storage:
+        fallback_source_storage = FallbackStorageAdapter(
+            primary=drive_storage,
+            secondary=local_storage
+        )
+    else:
+        fallback_source_storage = local_storage
+
     # 5. 어댑터(Adapters) 인스턴스 생성 및 의존성 주입
     # (Infra Layer)
     krx_adapter = KrxHttpAdapter()
@@ -107,7 +117,7 @@ def main():
     master_sheet_adapter = MasterSheetAdapter()
     master_pivot_sheet_adapter = MasterPivotSheetAdapter()
     master_workbook_adapter = MasterWorkbookAdapter(
-        source_storage=local_storage, # Master는 로컬 원본 기준
+        source_storage=fallback_source_storage, # Master는 Fallback Storage 사용
         target_storages=save_storages,
         sheet_adapter=master_sheet_adapter,
         pivot_sheet_adapter=master_pivot_sheet_adapter
@@ -118,7 +128,7 @@ def main():
     fetch_service = KrxFetchService(krx_port=krx_adapter)
     master_data_service = MasterDataService()
     master_service = MasterReportService(
-        source_storage=local_storage, # Master는 로컬 원본 기준
+        source_storage=fallback_source_storage, # Master는 Fallback Storage 사용
         target_storages=save_storages,
         data_service=master_data_service,
         workbook_adapter=master_workbook_adapter,
@@ -126,20 +136,11 @@ def main():
     )
     
     # Ranking 서비스 조립 (헥사고날 아키텍처)
-    # Ranking Report는 구글 드라이브 우선, 없으면 로컬 (Fallback)
-    if drive_storage:
-        ranking_source_storage = FallbackStorageAdapter(
-            primary=drive_storage,
-            secondary=local_storage
-        )
-    else:
-        ranking_source_storage = local_storage
-    
     ranking_data_service = RankingDataService(top_n=20)
     ranking_report_adapter = RankingExcelAdapter(
-        source_storage=ranking_source_storage,
+        source_storage=fallback_source_storage, # Ranking도 Fallback Storage 사용
         target_storages=save_storages,
-        file_name="2025일별수급순위정리표.xlsx"
+        file_name="2025년/일별수급정리표/2025일별수급순위정리표.xlsx"
     )
     ranking_service = RankingAnalysisService(
         data_service=ranking_data_service,

@@ -29,14 +29,13 @@ class DailyExcelAdapter(DailyReportPort):
             storages: StoragePort 구현체 리스트 (예: [LocalStorageAdapter, GoogleDriveAdapter])
         """
         self.storages = storages
-        for storage in self.storages:
-            storage.ensure_directory("순매수")
+        # 폴더는 저장 시점에 동적으로 생성되므로 초기화 시점에는 생성하지 않음
         print(f"[Adapter:DailyExcel] 초기화 완료 (저장소 {len(self.storages)}개)")
 
     def save_daily_reports(self, data_list: List[KrxData]) -> None:
         """수집된 데이터 리스트를 각각의 일별 엑셀 파일로 저장합니다.
 
-        파일명 형식: <날짜><시장><투자자>순매수.xlsx
+        파일명 형식: {연도}년/{월}월/{투자자구분}/<날짜><시장><투자자>순매수.xlsx
 
         Args:
             data_list: 저장할 KRX 데이터 리스트
@@ -49,7 +48,13 @@ class DailyExcelAdapter(DailyReportPort):
             try:
                 # 파일 이름 생성
                 korean_name_part = self.NAME_MAP.get(item.key, item.key)
-                filename = f"순매수/{item.date_str}{korean_name_part}순매수.xlsx"
+                
+                # 폴더 구조: {연도}년/{월}월/{투자자구분}/
+                year = item.date_str[:4]
+                month = item.date_str[4:6]
+                investor_type = "외국인" if "foreigner" in item.key else "기관"
+                
+                filename = f"{year}년/{month}월/{investor_type}/{item.date_str}{korean_name_part}순매수.xlsx"
 
                 # 저장용 복사본 생성 및 포맷팅
                 df_to_save = item.data.copy()

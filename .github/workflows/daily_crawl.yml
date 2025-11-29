@@ -14,6 +14,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Set up Just
+      uses: extractions/setup-just@v2
+
     - name: Create secrets directory
       run: mkdir -p secrets
 
@@ -24,8 +27,8 @@ jobs:
         echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > secrets/service-account.json
 
     - name: Build Docker Image
-      run: docker-compose -f docker/docker-compose.yml build
+      run: just build
 
     - name: Run Crawl (Drive Only)
       # GitHub Actions 환경에서는 로컬 저장이 의미가 없으므로 Drive Only 모드 사용
-      run: docker-compose -f docker/docker-compose.yml run --rm netbuy crawl --drive
+      run: just crawl --drive

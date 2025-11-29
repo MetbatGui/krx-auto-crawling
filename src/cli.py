@@ -217,8 +217,11 @@ def download(
 
     # (2) Watchlist
     # {Year}년/관심종목/{date}_일별상위종목.csv
-    watchlist_path = f"{year}년/관심종목/{target_date}_일별상위종목.csv"
-    files_to_download.append(watchlist_path)
+    # {Year}년/관심종목/{date}_누적상위종목.csv
+    watchlist_path_daily = f"{year}년/관심종목/{target_date}_일별상위종목.csv"
+    watchlist_path_cumulative = f"{year}년/관심종목/{target_date}_누적상위종목.csv"
+    files_to_download.append(watchlist_path_daily)
+    files_to_download.append(watchlist_path_cumulative)
 
     # (3) Ranking Report
     # {Year}년/일별수급정리표/{Year}일별수급순위정리표.xlsx

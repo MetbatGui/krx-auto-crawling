@@ -32,3 +32,7 @@ run +args:
 # Clean up Docker resources (containers, networks)
 clean:
     {{docker_compose}} -f docker/docker-compose.yml down
+
+# Run healthcheck command in Docker
+healthcheck:
+    {{docker_compose}} -f docker/docker-compose.yml run --rm netbuy healthcheck

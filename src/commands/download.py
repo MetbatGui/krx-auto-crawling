@@ -7,10 +7,10 @@ from infra.adapters.storage import LocalStorageAdapter
 from infra.adapters.storage.google_drive_adapter import GoogleDriveAdapter
 
 def download(
-    date: str = typer.Argument(None, help="Target date in YYYYMMDD format (default: today)")
+    date: str = typer.Argument(None, help="대상 날짜 (YYYYMMDD 형식, 기본값: 오늘)")
 ):
     """
-    Download files from Google Drive to Local Storage.
+    Google Drive에서 로컬 저장소로 파일을 다운로드합니다.
     """
     # 1. 환경 변수 로드
     load_dotenv()
@@ -19,7 +19,7 @@ def download(
     if date:
         target_date = date
         if len(target_date) != 8 or not target_date.isdigit():
-            typer.echo(f"🚨 [CLI] Invalid date format: {target_date}. Please use YYYYMMDD.", err=True)
+            typer.echo(f"🚨 [CLI] 잘못된 날짜 형식입니다: {target_date}. YYYYMMDD 형식을 사용해주세요.", err=True)
             raise typer.Exit(code=1)
     else:
         target_date = datetime.date.today().strftime('%Y%m%d')
@@ -33,7 +33,7 @@ def download(
     CLIENT_SECRET_FILE = "secrets/client_secret.json"
     ROOT_FOLDER_ID = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID")
 
-    typer.echo(f"--- [CLI] Downloading files from Google Drive (Target: {target_date}) ---")
+    typer.echo(f"--- [CLI] Google Drive에서 파일 다운로드 시작 (대상: {target_date}) ---")
 
     # 4. 저장소 초기화
     local_storage = LocalStorageAdapter(base_path=BASE_OUTPUT_PATH)
@@ -45,10 +45,10 @@ def download(
         elif os.path.exists(SERVICE_ACCOUNT_FILE):
             drive_storage = GoogleDriveAdapter(service_account_file=SERVICE_ACCOUNT_FILE, root_folder_id=ROOT_FOLDER_ID)
         else:
-            typer.echo("🚨 [CLI] No credentials found. Cannot download from Drive.", err=True)
+            typer.echo("🚨 [CLI] 인증 파일을 찾을 수 없습니다. Drive에서 다운로드할 수 없습니다.", err=True)
             raise typer.Exit(code=1)
     except Exception as e:
-        typer.echo(f"🚨 [CLI] Drive initialization failed: {e}", err=True)
+        typer.echo(f"🚨 [CLI] Drive 초기화 실패: {e}", err=True)
         raise typer.Exit(code=1)
 
     # 5. 다운로드 대상 파일 목록 정의
@@ -94,20 +94,20 @@ def download(
     fail_count = 0
 
     for file_path in files_to_download:
-        typer.echo(f"Downloading: {file_path} ... ", nl=False)
+        typer.echo(f"다운로드 중: {file_path} ... ", nl=False)
         
         # Drive에서 읽기
         data = drive_storage.get_file(file_path)
         if data:
             # Local에 쓰기
             if local_storage.put_file(file_path, data):
-                typer.echo("✅ OK")
+                typer.echo("✅ 성공")
                 success_count += 1
             else:
-                typer.echo("❌ Write Failed")
+                typer.echo("❌ 저장 실패")
                 fail_count += 1
         else:
-            typer.echo("⚠️ Not Found on Drive")
+            typer.echo("⚠️ Drive에 없음")
             fail_count += 1
 
-    typer.echo(f"--- [CLI] Download Complete. Success: {success_count}, Failed/Missing: {fail_count} ---")
+    typer.echo(f"--- [CLI] 다운로드 완료. 성공: {success_count}, 실패/없음: {fail_count} ---")

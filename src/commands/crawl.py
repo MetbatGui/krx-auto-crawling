@@ -23,11 +23,11 @@ from infra.adapters.excel.master_sheet_adapter import MasterSheetAdapter
 from infra.adapters.excel.master_pivot_sheet_adapter import MasterPivotSheetAdapter
 
 def crawl(
-    date: str = typer.Argument(None, help="Target date in YYYYMMDD format (default: today)"),
-    drive: bool = typer.Option(False, "--drive", "-d", help="Save to Google Drive as well")
+    date: str = typer.Argument(None, help="대상 날짜 (YYYYMMDD 형식, 기본값: 오늘)"),
+    drive: bool = typer.Option(False, "--drive", "-d", help="Google Drive에도 저장할지 여부")
 ):
     """
-    Execute the daily crawling routine.
+    일일 크롤링 루틴을 실행합니다.
     """
     # 1. 환경 변수 로드
     load_dotenv()
@@ -37,7 +37,7 @@ def crawl(
         target_date = date
         # 간단한 날짜 형식 검증
         if len(target_date) != 8 or not target_date.isdigit():
-            typer.echo(f"🚨 [CLI] Invalid date format: {target_date}. Please use YYYYMMDD.", err=True)
+            typer.echo(f"🚨 [CLI] 잘못된 날짜 형식입니다: {target_date}. YYYYMMDD 형식을 사용해주세요.", err=True)
             raise typer.Exit(code=1)
     else:
         target_date = datetime.date.today().strftime('%Y%m%d')

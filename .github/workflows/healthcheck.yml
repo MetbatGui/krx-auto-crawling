@@ -31,4 +31,4 @@ jobs:
 
     - name: Run Healthcheck
       run: |
-        just -f Justfile.linux healthcheck
+        just -f Justfile.linux docker-healthcheck

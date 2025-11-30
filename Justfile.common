@@ -34,5 +34,5 @@ clean:
     {{docker_compose}} -f docker/docker-compose.yml down
 
 # Run healthcheck command in Docker
-healthcheck:
+docker-healthcheck:
     {{docker_compose}} -f docker/docker-compose.yml run --rm netbuy healthcheck

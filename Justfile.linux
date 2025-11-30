@@ -6,4 +6,7 @@ set dotenv-load
 # Default shell is bash
 set shell := ["bash", "-c"]
 
+# Override docker-compose command for Linux (GitHub Actions uses 'docker compose')
+docker_compose := "docker compose"
+
 import 'Justfile.common'

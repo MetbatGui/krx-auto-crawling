@@ -32,3 +32,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 # src 디렉터리 하위의 모든 패키지를 자동으로 찾도록 설정
 where = ["src"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+    "pytest-cov>=7.0.0",
+]

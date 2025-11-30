@@ -2,8 +2,8 @@
 
 # Load .env file
 set dotenv-load
-# Use PowerShell on Windows
-set shell := ["powershell", "-c"]
+# Shell setting removed to support both Windows (cmd/powershell) and Linux (sh)
+# set shell := ["powershell", "-c"]
 
 # Default: Show help
 default:

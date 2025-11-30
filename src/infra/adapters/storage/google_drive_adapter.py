@@ -2,13 +2,14 @@
 
 import os
 import io
-import pickle
+import json
 from typing import Optional, List
 import pandas as pd
 import openpyxl
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 
@@ -66,25 +67,33 @@ class GoogleDriveAdapter(StoragePort):
         
         # 1. OAuth 2.0 (Client Secret) 방식 시도
         if self.client_secret_file and os.path.exists(self.client_secret_file):
-            token_path = os.path.join(os.path.dirname(self.client_secret_file), 'token.pickle')
+            token_path = os.path.join(os.path.dirname(self.client_secret_file), 'token.json')
             
             # 기존 토큰 로드
             if os.path.exists(token_path):
-                with open(token_path, 'rb') as token:
-                    creds = pickle.load(token)
+                try:
+                    creds = Credentials.from_authorized_user_file(token_path, self.SCOPES)
+                except Exception as e:
+                    print(f"[GoogleDrive] ⚠️ 토큰 로드 실패: {e}")
+                    creds = None
             
             # 토큰이 없거나 유효하지 않으면 새로 발급
             if not creds or not creds.valid:
                 if creds and creds.expired and creds.refresh_token:
-                    creds.refresh(Request())
-                else:
+                    try:
+                        creds.refresh(Request())
+                    except Exception as e:
+                        print(f"[GoogleDrive] ⚠️ 토큰 갱신 실패: {e}")
+                        creds = None
+
+                if not creds:
                     flow = InstalledAppFlow.from_client_secrets_file(
                         self.client_secret_file, self.SCOPES)
                     creds = flow.run_local_server(port=0)
                 
-                # 토큰 저장
-                with open(token_path, 'wb') as token:
-                    pickle.dump(creds, token)
+                # 토큰 저장 (JSON)
+                with open(token_path, 'w') as token:
+                    token.write(creds.to_json())
             
             return build('drive', 'v3', credentials=creds)
 

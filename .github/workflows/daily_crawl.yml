@@ -26,11 +26,16 @@ jobs:
     - name: Create secrets directory
       run: mkdir -p secrets
 
-    - name: Create Service Account Key
-      # GitHub Secrets에서 서비스 계정 키를 가져와 파일로 생성
-      # Secret Name: GOOGLE_SERVICE_ACCOUNT_JSON
+    - name: Create Secrets
       run: |
-        echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > secrets/service-account.json
+        echo '${{ secrets.GOOGLE_CLIENT_SECRET_JSON }}' > secrets/client_secret.json
+        echo '${{ secrets.GOOGLE_TOKEN_JSON }}' > secrets/token.json
+
+    - name: Create .env file
+      run: |
+        echo "KRX_OTP_URL=http://data.krx.co.kr/comm/fileDn/GenerateOTP/generate.cmd" >> .env
+        echo "KRX_DOWNLOAD_URL=http://data.krx.co.kr/comm/fileDn/download_csv/download.cmd" >> .env
+        echo "GOOGLE_DRIVE_ROOT_FOLDER_ID=${{ secrets.GOOGLE_DRIVE_ROOT_FOLDER_ID }}" >> .env
 
     - name: Build Docker Image
       run: just -f Justfile.linux build

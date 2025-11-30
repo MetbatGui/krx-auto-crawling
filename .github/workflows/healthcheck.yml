@@ -31,4 +31,4 @@ jobs:
 
     - name: Run Healthcheck
       run: |
-        just healthcheck
+        just -f Justfile.linux healthcheck

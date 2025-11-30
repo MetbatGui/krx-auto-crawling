@@ -4,8 +4,6 @@
 default:
     @just --list
 
-# Default docker-compose command (can be overridden)
-docker_compose := "docker-compose"
 
 # --- Docker Commands ---
 

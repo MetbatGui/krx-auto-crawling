@@ -1,0 +1,9 @@
+# Justfile for KRX Auto Crawling (Linux/macOS)
+
+# Load .env file
+set dotenv-load
+
+# Default shell is sh, so no need to set shell explicitly for Linux
+# set shell := ["sh", "-c"]
+
+import 'Justfile.common'

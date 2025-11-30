@@ -1,38 +1,9 @@
-# Justfile for KRX Auto Crawling
+# Justfile for KRX Auto Crawling (Windows)
 
 # Load .env file
 set dotenv-load
-# Shell setting removed to support both Windows (cmd/powershell) and Linux (sh)
-# set shell := ["powershell", "-c"]
 
-# Default: Show help
-default:
-    @just --list
+# Use PowerShell on Windows
+set shell := ["powershell", "-c"]
 
-# --- Docker Commands ---
-
-# Build the Docker image
-build:
-    docker-compose -f docker/docker-compose.yml build
-
-# Run crawl command in Docker
-# Usage: just crawl [args]
-# Example: just crawl 20251130 --drive
-crawl +args:
-    docker-compose -f docker/docker-compose.yml run --rm netbuy crawl {{args}}
-
-# Run download command in Docker
-# Usage: just download [args]
-# Example: just download 20251130
-download +args:
-    docker-compose -f docker/docker-compose.yml run --rm netbuy download {{args}}
-
-# Run arbitrary command in Docker
-# Usage: just run [command]
-# Example: just run netbuy --help
-run +args:
-    docker-compose -f docker/docker-compose.yml run --rm {{args}}
-
-# Clean up Docker resources (containers, networks)
-clean:
-    docker-compose -f docker/docker-compose.yml down
+import 'Justfile.common'

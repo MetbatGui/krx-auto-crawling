@@ -3,7 +3,7 @@
 # Load .env file
 set dotenv-load
 
-# Default shell is sh, so no need to set shell explicitly for Linux
-# set shell := ["sh", "-c"]
+# Default shell is bash
+set shell := ["bash", "-c"]
 
 import 'Justfile.common'

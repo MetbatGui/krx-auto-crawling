@@ -19,19 +19,20 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-install-project --no-dev
 
+# Place executables in the environment at the front of the path
+ENV PATH="/app/.venv/bin:$PATH"
+
 # Install Playwright browsers and system dependencies
 # This is required because the base image is 'slim' and lacks browser libs
 # We run this as root before switching users
 # Note: --with-deps installs system dependencies (requires root)
-RUN uv run playwright install --with-deps chromium
+RUN playwright install-deps \
+    && playwright install chromium
 
 # Then, add the rest of the project source code and install it
 COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
-
-# Place executables in the environment at the front of the path
-ENV PATH="/app/.venv/bin:$PATH"
 
 # Change ownership of the app directory
 RUN chown -R nonroot:nonroot /app

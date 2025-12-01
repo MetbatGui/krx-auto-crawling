@@ -12,14 +12,14 @@ class KrxFetchService:
     """KRX 데이터 수집 및 표준화를 담당하는 헬퍼 서비스.
 
     Attributes:
-        krx_port (KrxDataPort): KRX 데이터 포트 인터페이스
+        krx_port (KrxDataPort): KRX 데이터 포트 인터페이스.
     """
 
     def __init__(self, krx_port: KrxDataPort):
         """KrxFetchService 초기화.
 
         Args:
-            krx_port: KRX 데이터 포트 인터페이스
+            krx_port (KrxDataPort): KRX 데이터 포트 인터페이스.
         """
         self.krx_port = krx_port
 
@@ -27,10 +27,10 @@ class KrxFetchService:
         """모든 타겟(시장/투자자)에 대해 데이터를 수집하고 가공합니다.
 
         Args:
-            date_str: 수집할 날짜 (YYYYMMDD). None이면 오늘 날짜.
+            date_str (Optional[str]): 수집할 날짜 (YYYYMMDD). None이면 오늘 날짜를 사용합니다.
 
         Returns:
-            수집된 KrxData 객체 리스트
+            List[KrxData]: 수집된 KrxData 객체 리스트.
         """
         if date_str is None:
             date_str = datetime.date.today().strftime('%Y%m%d')
@@ -88,10 +88,10 @@ class KrxFetchService:
         """KRX 원본 데이터를 파싱하고 순매수 상위 20개를 추출합니다.
 
         Args:
-            excel_bytes: KRX에서 다운로드한 원본 바이트 데이터
+            excel_bytes (bytes): KRX에서 다운로드한 원본 바이트 데이터.
 
         Returns:
-            가공된 DataFrame (종목코드, 종목명, 순매수_거래대금)
+            pd.DataFrame: 가공된 DataFrame (종목코드, 종목명, 순매수_거래대금).
         """
         if not excel_bytes:
             return pd.DataFrame()
@@ -120,7 +120,14 @@ class KrxFetchService:
         return df_top20[required_cols].rename(columns={sort_col: '순매수_거래대금'})
 
     def _parse_bytes_to_df(self, excel_bytes: bytes) -> pd.DataFrame:
-        """바이트 데이터를 DataFrame으로 파싱합니다."""
+        """바이트 데이터를 DataFrame으로 파싱합니다.
+        
+        Args:
+            excel_bytes (bytes): 엑셀 바이트 데이터.
+            
+        Returns:
+            pd.DataFrame: 파싱된 DataFrame.
+        """
         try:
             # 엑셀 파일 시그니처(PK) 확인
             if excel_bytes.startswith(b'PK'):
@@ -133,7 +140,14 @@ class KrxFetchService:
             return pd.DataFrame()
 
     def _find_net_value_column(self, df: pd.DataFrame) -> Optional[str]:
-        """순매수 거래대금 컬럼을 찾습니다."""
+        """순매수 거래대금 컬럼을 찾습니다.
+        
+        Args:
+            df (pd.DataFrame): 대상 DataFrame.
+            
+        Returns:
+            Optional[str]: 컬럼명, 없으면 None.
+        """
         net_value_keywords = ['순매수', '거래대금']
         
         for col in df.columns:

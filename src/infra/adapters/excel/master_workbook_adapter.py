@@ -38,20 +38,19 @@ class MasterWorkbookAdapter:
         date_int: int,
         sheet_exists: bool
     ) -> bool:
-        """
-        워크북을 생성하고 저장합니다.
+        """워크북을 생성하고 저장합니다.
         
         Args:
-            file_path: 파일 경로 (상대 경로)
-            sheet_name: Raw 데이터 시트 이름
-            pivot_sheet_name: 피벗 시트 이름
-            new_data: 추가할 새 데이터
-            pivot_data: 피벗 테이블 데이터
-            date_int: 기준 날짜
-            sheet_exists: Raw 시트 존재 여부
+            file_path (str): 파일 경로 (상대 경로).
+            sheet_name (str): Raw 데이터 시트 이름.
+            pivot_sheet_name (str): 피벗 시트 이름.
+            new_data (pd.DataFrame): 추가할 새 데이터.
+            pivot_data (pd.DataFrame): 피벗 테이블 데이터.
+            date_int (int): 기준 날짜.
+            sheet_exists (bool): Raw 시트 존재 여부.
             
         Returns:
-            저장 성공 여부 (모두 성공 시 True)
+            bool: 저장 성공 여부 (모두 성공 시 True).
         """
         try:
             # 1. 워크북 로드 또는 생성 (Source Storage 사용)

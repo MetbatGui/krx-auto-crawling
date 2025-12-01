@@ -3,11 +3,6 @@ import cloudscraper
 import datetime
 import os
 import time
-# infra/adapters/krx_http_adapter.py
-import cloudscraper
-import datetime
-import os
-import time
 from dotenv import load_dotenv
 from typing import Optional
 
@@ -20,16 +15,16 @@ class KrxHttpAdapter(KrxDataPort):
     cloudscraper와 HTTP(OTP)를 사용하여 KRX에서 실제 데이터를 가져옵니다.
 
     Attributes:
-        scraper (cloudscraper.CloudScraper): CloudScraper 인스턴스
-        otp_url (str): OTP 발급 URL
-        download_url (str): 데이터 다운로드 URL
+        scraper (cloudscraper.CloudScraper): CloudScraper 인스턴스.
+        otp_url (str): OTP 발급 URL.
+        download_url (str): 데이터 다운로드 URL.
     """
     
     def __init__(self):
         """KrxHttpAdapter 초기화.
 
         Raises:
-            EnvironmentError: 필수 환경 변수가 설정되지 않은 경우
+            EnvironmentError: 필수 환경 변수가 설정되지 않은 경우.
         """
         super().__init__()
         self.scraper = cloudscraper.create_scraper()
@@ -88,15 +83,15 @@ class KrxHttpAdapter(KrxDataPort):
         """지정된 조건의 투자자별 순매수 원본 엑셀(bytes)을 가져옵니다.
 
         Args:
-            market: 시장 구분 (KOSPI, KOSDAQ)
-            investor: 투자자 구분 (외국인, 기관)
-            date_str: 대상 날짜 (YYYYMMDD)
+            market (Market): 시장 구분 (KOSPI, KOSDAQ).
+            investor (Investor): 투자자 구분 (외국인, 기관).
+            date_str (Optional[str]): 대상 날짜 (YYYYMMDD).
 
         Returns:
-            다운로드된 엑셀 파일의 바이너리 데이터
+            bytes: 다운로드된 엑셀 파일의 바이너리 데이터.
 
         Raises:
-            ConnectionError: OTP 발급 또는 다운로드 실패 시
+            ConnectionError: OTP 발급 또는 다운로드 실패 시.
         """
         
         if date_str is None:

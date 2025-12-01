@@ -4,8 +4,10 @@ from dotenv import load_dotenv
 from infra.adapters.storage.google_drive_adapter import GoogleDriveAdapter
 
 def healthcheck():
-    """
-    Google Drive 접근 권한 및 루트 폴더 존재 여부를 확인합니다.
+    """Google Drive 접근 권한 및 루트 폴더 존재 여부를 확인합니다.
+
+    `secrets/` 디렉토리의 인증 파일을 확인하고, Google Drive API를 통해
+    루트 폴더에 접근 가능한지 테스트합니다.
     """
     load_dotenv()
     

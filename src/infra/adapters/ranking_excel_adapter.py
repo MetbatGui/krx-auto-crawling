@@ -20,8 +20,8 @@ class RankingExcelAdapter(RankingReportPort):
     ExcelFormatter와 ExcelSheetBuilder 유틸리티를 조합하여 사용합니다.
 
     Attributes:
-        storage (StoragePort): 파일 저장/로드 포트
-        file_path (str): Excel 파일 경로
+        storage (StoragePort): 파일 저장/로드 포트.
+        file_path (str): Excel 파일 경로.
     """
     
     TOP_N = 20
@@ -39,9 +39,9 @@ class RankingExcelAdapter(RankingReportPort):
         """RankingExcelAdapter 초기화.
 
         Args:
-            source_storage: 파일을 로드할 저장소 (예: GoogleDriveAdapter)
-            target_storages: 파일을 저장할 저장소 리스트 (예: [LocalStorageAdapter, GoogleDriveAdapter])
-            file_name: Excel 파일명
+            source_storage (StoragePort): 파일을 로드할 저장소 (예: GoogleDriveAdapter).
+            target_storages (List[StoragePort]): 파일을 저장할 저장소 리스트 (예: [LocalStorageAdapter, GoogleDriveAdapter]).
+            file_name (str): Excel 파일명.
         """
         self.source_storage = source_storage
         self.target_storages = target_storages
@@ -57,12 +57,12 @@ class RankingExcelAdapter(RankingReportPort):
         """순위표 리포트를 업데이트합니다.
 
         Args:
-            report_date: 리포트 날짜
-            data_map: 데이터 딕셔너리
-            common_stocks: 공통 종목 딕셔너리
+            report_date (datetime.date): 리포트 날짜.
+            data_map (Dict[str, pd.DataFrame]): 데이터 딕셔너리.
+            common_stocks (Dict[str, Set[str]]): 공통 종목 딕셔너리.
 
         Returns:
-            성공 여부
+            bool: 성공 여부.
         """
         book = self._load_workbook()
         if not book:

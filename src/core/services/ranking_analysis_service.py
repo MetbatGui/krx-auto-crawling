@@ -43,7 +43,7 @@ class RankingAnalysisService:
         3. 리포트 생성 (Port에 위임)
         
         Args:
-            data_list: 업데이트할 KRX 데이터 리스트
+            data_list (List[KrxData]): 업데이트할 KRX 데이터 리스트.
         """
         if not self.data_service.validate_data(data_list):
             return

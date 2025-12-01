@@ -21,15 +21,14 @@ class MasterPivotSheetAdapter:
         pivot_data: pd.DataFrame,
         date_int: int
     ) -> None:
-        """
-        피벗 시트를 생성하고 서식을 적용합니다.
+        """피벗 시트를 생성하고 서식을 적용합니다.
         
         Args:
-            book: openpyxl Workbook
-            sheet_name: Raw 데이터 시트 이름
-            pivot_sheet_name: 피벗 시트 이름
-            pivot_data: 피벗 데이터
-            date_int: 기준 날짜
+            book (Workbook): openpyxl Workbook.
+            sheet_name (str): Raw 데이터 시트 이름.
+            pivot_sheet_name (str): 피벗 시트 이름.
+            pivot_data (pd.DataFrame): 피벗 데이터.
+            date_int (int): 기준 날짜.
         """
         # 기존 피벗 시트 삭제
         if pivot_sheet_name in book.sheetnames:

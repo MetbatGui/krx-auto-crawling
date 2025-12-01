@@ -9,8 +9,13 @@ from infra.adapters.storage.google_drive_adapter import GoogleDriveAdapter
 def download(
     date: str = typer.Argument(None, help="대상 날짜 (YYYYMMDD 형식, 기본값: 오늘)")
 ):
-    """
-    Google Drive에서 로컬 저장소로 파일을 다운로드합니다.
+    """Google Drive에서 로컬 저장소로 파일을 다운로드합니다.
+
+    지정된 날짜의 일별 리포트, 관심종목 파일, 순위 리포트, 마스터 리포트를
+    Google Drive에서 로컬 `output` 디렉토리로 다운로드합니다.
+
+    Args:
+        date (str): 대상 날짜 (YYYYMMDD). 기본값은 오늘 날짜.
     """
     # 1. 환경 변수 로드
     load_dotenv()

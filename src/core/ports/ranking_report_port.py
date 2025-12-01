@@ -23,11 +23,11 @@ class RankingReportPort(ABC):
         """순위표 리포트를 업데이트합니다.
         
         Args:
-            report_date: 리포트 작성 날짜
-            data_map: 시장별 데이터 {key: DataFrame}
-            common_stocks: 시장별 공통 종목 {'KOSPI': {...}, 'KOSDAQ': {...}}
+            report_date (datetime.date): 리포트 작성 날짜.
+            data_map (Dict[str, pd.DataFrame]): 시장별 데이터 {key: DataFrame}.
+            common_stocks (Dict[str, Set[str]]): 시장별 공통 종목 {'KOSPI': {...}, 'KOSDAQ': {...}}.
             
         Returns:
-            업데이트 성공 여부
+            bool: 업데이트 성공 여부.
         """
         pass

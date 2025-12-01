@@ -32,16 +32,15 @@ class ExcelFormatter:
         max_col: int,
         color: str = 'header_blue'
     ):
-        """
-        헤더 영역에 배경색을 적용합니다.
+        """헤더 영역에 배경색을 적용합니다.
         
         Args:
-            ws: 워크시트
-            min_row: 시작 행
-            max_row: 종료 행
-            min_col: 시작 열
-            max_col: 종료 열
-            color: 색상 키 (기본: 'header_blue')
+            ws (Worksheet): 워크시트.
+            min_row (int): 시작 행.
+            max_row (int): 종료 행.
+            min_col (int): 시작 열.
+            max_col (int): 종료 열.
+            color (str): 색상 키 (기본: 'header_blue').
         """
         fill = PatternFill(
             start_color=ExcelFormatter.COLORS[color],
@@ -66,15 +65,14 @@ class ExcelFormatter:
         col: int,
         color: str = 'red'
     ):
-        """
-        특정 열의 폰트 색상을 변경합니다.
+        """특정 열의 폰트 색상을 변경합니다.
         
         Args:
-            ws: 워크시트
-            min_row: 시작 행
-            max_row: 종료 행
-            col: 열 번호
-            color: 색상 키 (기본: 'red')
+            ws (Worksheet): 워크시트.
+            min_row (int): 시작 행.
+            max_row (int): 종료 행.
+            col (int): 열 번호.
+            color (str): 색상 키 (기본: 'red').
         """
         font = Font(color=ExcelFormatter.COLORS[color])
         
@@ -93,15 +91,15 @@ class ExcelFormatter:
         date_col: str,
         top_5_stocks: List[str]
     ):
-        """
-        상위 5개 종목에 그라데이션 배경색을 적용합니다.
-        빨강 → 주황 → 노랑 → 초록 → 하늘색
+        """상위 5개 종목에 그라데이션 배경색을 적용합니다.
+        
+        빨강 → 주황 → 노랑 → 초록 → 하늘색 순서로 적용됩니다.
         
         Args:
-            ws: 워크시트
-            start_row: 데이터 시작 행
-            date_col: 날짜 열 (예: 'B', 'C')
-            top_5_stocks: 상위 5개 종목명 리스트
+            ws (Worksheet): 워크시트.
+            start_row (int): 데이터 시작 행.
+            date_col (str): 날짜 열 (예: 'B', 'C').
+            top_5_stocks (List[str]): 상위 5개 종목명 리스트.
         """
         top_5_colors = ['red', 'orange', 'yellow', 'green', 'light_blue']
         
@@ -133,16 +131,15 @@ class ExcelFormatter:
         common_stocks: Set[str],
         color: str = 'common_blue'
     ):
-        """
-        공통 종목에 배경색을 적용합니다 (RankingExcelAdapter용).
+        """공통 종목에 배경색을 적용합니다 (RankingExcelAdapter용).
         
         Args:
-            ws: 워크시트
-            stock_col: 종목명 열 (예: 'D', 'F')
-            start_row: 시작 행
-            pasted_count: 붙여넣은 행 수
-            common_stocks: 공통 종목명 Set
-            color: 색상 키 (기본: 'common_blue')
+            ws (Worksheet): 워크시트.
+            stock_col (str): 종목명 열 (예: 'D', 'F').
+            start_row (int): 시작 행.
+            pasted_count (int): 붙여넣은 행 수.
+            common_stocks (Set[str]): 공통 종목명 Set.
+            color (str): 색상 키 (기본: 'common_blue').
         """
         fill = PatternFill(
             start_color=ExcelFormatter.COLORS[color],
@@ -158,12 +155,11 @@ class ExcelFormatter:
     
     @staticmethod
     def set_column_width(ws: Worksheet, column_letter: str, width: float):
-        """
-        열 너비를 설정합니다.
+        """열 너비를 설정합니다.
         
         Args:
-            ws: 워크시트
-            column_letter: 열 문자 (예: 'A', 'B')
-            width: 너비 값
+            ws (Worksheet): 워크시트.
+            column_letter (str): 열 문자 (예: 'A', 'B').
+            width (float): 너비 값.
         """
         ws.column_dimensions[column_letter].width = width

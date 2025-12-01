@@ -16,10 +16,10 @@ class KrxData:
     """수집된 KRX 데이터와 메타데이터를 캡슐화하는 DTO.
 
     Attributes:
-        market (Market): 시장 구분
-        investor (Investor): 투자자 구분
-        date_str (str): 날짜 (YYYYMMDD)
-        data (pd.DataFrame): 수집된 데이터
+        market (Market): 시장 구분 (KOSPI, KOSDAQ).
+        investor (Investor): 투자자 구분 (기관, 외국인).
+        date_str (str): 날짜 문자열 (YYYYMMDD).
+        data (pd.DataFrame): 수집된 데이터 프레임.
     """
     market: Market
     investor: Investor

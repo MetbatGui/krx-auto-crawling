@@ -4,8 +4,10 @@ from dotenv import load_dotenv
 from infra.adapters.storage.google_drive_adapter import GoogleDriveAdapter
 
 def auth():
-    """
-    Google Drive 인증(OAuth 2.0)을 수행하고 token.json을 생성합니다.
+    """Google Drive 인증(OAuth 2.0)을 수행하고 token.json을 생성합니다.
+
+    `secrets/client_secret.json` 파일을 사용하여 인증을 진행하며,
+    성공 시 `secrets/token.json` 파일을 생성하거나 갱신합니다.
     """
     load_dotenv()
     

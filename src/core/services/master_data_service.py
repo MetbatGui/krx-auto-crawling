@@ -25,11 +25,11 @@ class MasterDataService:
         """일별 데이터를 Excel 스키마로 변환합니다.
         
         Args:
-            daily_data: KRX 일별 데이터 (종목명, 순매수_거래대금 컬럼 포함)
-            date_int: 날짜 정수 (예: 20251121)
+            daily_data (pd.DataFrame): KRX 일별 데이터 (종목명, 순매수_거래대금 컬럼 포함).
+            date_int (int): 날짜 정수 (예: 20251121).
             
         Returns:
-            변환된 DataFrame (일자, 종목, 금액 컬럼)
+            pd.DataFrame: 변환된 DataFrame (일자, 종목, 금액 컬럼).
         """
         try:
             formatted_df = (
@@ -56,11 +56,11 @@ class MasterDataService:
         """중복 날짜가 있는지 확인합니다.
         
         Args:
-            existing_df: 기존 데이터 DataFrame
-            date_int: 확인할 날짜 정수
+            existing_df (pd.DataFrame): 기존 데이터 DataFrame.
+            date_int (int): 확인할 날짜 정수.
             
         Returns:
-            True if 중복 존재, False otherwise
+            bool: 중복 존재 시 True, 그렇지 않으면 False.
         """
         if existing_df.empty:
             return False
@@ -80,11 +80,11 @@ class MasterDataService:
         """기존 데이터와 신규 데이터를 병합합니다.
         
         Args:
-            existing_df: 기존 데이터
-            new_df: 신규 데이터
+            existing_df (pd.DataFrame): 기존 데이터.
+            new_df (pd.DataFrame): 신규 데이터.
             
         Returns:
-            병합된 DataFrame
+            pd.DataFrame: 병합된 DataFrame.
         """
         if existing_df.empty:
             merged = new_df.copy()
@@ -102,11 +102,11 @@ class MasterDataService:
         """피벗 테이블을 계산합니다.
         
         Args:
-            data: 원본 데이터 (일자, 종목, 금액 컬럼 포함)
-            date_int: 기준 날짜 (피벗 컬럼에서 찾기 위함)
+            data (pd.DataFrame): 원본 데이터 (일자, 종목, 금액 컬럼 포함).
+            date_int (int): 기준 날짜 (피벗 컬럼에서 찾기 위함).
             
         Returns:
-            정렬된 피벗 DataFrame (총계 포함)
+            pd.DataFrame: 정렬된 피벗 DataFrame (총계 포함).
         """
         if data.empty:
             print(f"    -> [Service:MasterData] ⚠️ 데이터가 비어있어 피벗을 생성할 수 없습니다.")
@@ -148,11 +148,11 @@ class MasterDataService:
         """피벗 데이터에서 총계 기준 상위 N개 종목명을 추출합니다.
         
         Args:
-            pivot_data: 피벗 DataFrame (총계 컬럼 포함)
-            top_n: 추출할 상위 종목 개수 (기본 20)
+            pivot_data (pd.DataFrame): 피벗 DataFrame (총계 컬럼 포함).
+            top_n (int): 추출할 상위 종목 개수 (기본 20).
             
         Returns:
-            상위 N개 종목명 리스트
+            List[str]: 상위 N개 종목명 리스트.
         """
         if pivot_data.empty or '총계' not in pivot_data.columns:
             print(f"    -> [Service:MasterData] ⚠️ 피벗 데이터가 비어있거나 총계 컬럼이 없습니다")

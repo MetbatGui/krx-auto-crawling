@@ -18,14 +18,14 @@ class LocalStorageAdapter(StoragePort):
     StoragePort를 구현하여 로컬 파일 시스템에 데이터를 저장합니다.
 
     Attributes:
-        base_path (Path): 기본 저장 경로
+        base_path (Path): 기본 저장 경로.
     """
     
     def __init__(self, base_path: str = "output"):
         """LocalStorageAdapter 초기화.
 
         Args:
-            base_path: 기본 저장 경로 (기본값: "output")
+            base_path (str): 기본 저장 경로 (기본값: "output").
         """
         self.base_path = Path(base_path)
         self.ensure_directory("")  # 기본 경로 생성
@@ -35,12 +35,12 @@ class LocalStorageAdapter(StoragePort):
         """DataFrame을 Excel 파일로 저장합니다.
 
         Args:
-            df: 저장할 DataFrame
-            path: 저장 경로 (base_path 상대 경로)
-            **kwargs: to_excel 옵션
+            df (pd.DataFrame): 저장할 DataFrame.
+            path (str): 저장 경로 (base_path 상대 경로).
+            **kwargs: to_excel 옵션.
 
         Returns:
-            성공 여부
+            bool: 성공 여부.
         """
         try:
             full_path = self.base_path / path
@@ -56,12 +56,12 @@ class LocalStorageAdapter(StoragePort):
         """DataFrame을 CSV 파일로 저장합니다.
 
         Args:
-            df: 저장할 DataFrame
-            path: 저장 경로 (base_path 상대 경로)
-            **kwargs: to_csv 옵션
+            df (pd.DataFrame): 저장할 DataFrame.
+            path (str): 저장 경로 (base_path 상대 경로).
+            **kwargs: to_csv 옵션.
 
         Returns:
-            성공 여부
+            bool: 성공 여부.
         """
         try:
             full_path = self.base_path / path
@@ -77,11 +77,11 @@ class LocalStorageAdapter(StoragePort):
         """openpyxl Workbook을 저장합니다.
 
         Args:
-            book: 저장할 Workbook 객체
-            path: 저장 경로 (base_path 상대 경로)
+            book (openpyxl.Workbook): 저장할 Workbook 객체.
+            path (str): 저장 경로 (base_path 상대 경로).
 
         Returns:
-            성공 여부
+            bool: 성공 여부.
         """
         try:
             full_path = self.base_path / path
@@ -97,10 +97,10 @@ class LocalStorageAdapter(StoragePort):
         """Excel Workbook을 로드합니다.
 
         Args:
-            path: 로드할 파일 경로 (base_path 상대 경로)
+            path (str): 로드할 파일 경로 (base_path 상대 경로).
 
         Returns:
-            openpyxl.Workbook: 로드된 Workbook 객체, 실패 시 None
+            Optional[openpyxl.Workbook]: 로드된 Workbook 객체, 실패 시 None.
         """
         try:
             full_path = self.base_path / path
@@ -116,10 +116,10 @@ class LocalStorageAdapter(StoragePort):
         """경로가 존재하는지 확인합니다.
 
         Args:
-            path: 확인할 경로 (base_path 상대 경로)
+            path (str): 확인할 경로 (base_path 상대 경로).
 
         Returns:
-            존재 여부
+            bool: 존재 여부.
         """
         full_path = self.base_path / path
         return full_path.exists()
@@ -128,10 +128,10 @@ class LocalStorageAdapter(StoragePort):
         """디렉토리가 없으면 생성합니다.
 
         Args:
-            path: 생성할 디렉토리 경로 (base_path 상대 경로)
+            path (str): 생성할 디렉토리 경로 (base_path 상대 경로).
 
         Returns:
-            성공 여부
+            bool: 성공 여부.
         """
         try:
             if path == "":
@@ -146,7 +146,16 @@ class LocalStorageAdapter(StoragePort):
             return False
 
     def load_dataframe(self, path: str, sheet_name: str = None, **kwargs) -> pd.DataFrame:
-        """Excel 파일에서 DataFrame을 로드합니다."""
+        """Excel 파일에서 DataFrame을 로드합니다.
+        
+        Args:
+            path (str): 파일 경로.
+            sheet_name (str, optional): 시트 이름.
+            **kwargs: 추가 옵션.
+            
+        Returns:
+            pd.DataFrame: 로드된 DataFrame.
+        """
         try:
             full_path = self.base_path / path
             if not full_path.exists():
@@ -160,7 +169,14 @@ class LocalStorageAdapter(StoragePort):
             return pd.DataFrame()
 
     def get_file(self, path: str) -> Optional[bytes]:
-        """파일의 내용을 바이트로 읽어옵니다."""
+        """파일의 내용을 바이트로 읽어옵니다.
+        
+        Args:
+            path (str): 파일 경로.
+            
+        Returns:
+            Optional[bytes]: 파일 내용, 실패 시 None.
+        """
         try:
             full_path = self.base_path / path
             if not full_path.exists():
@@ -173,7 +189,15 @@ class LocalStorageAdapter(StoragePort):
             return None
 
     def put_file(self, path: str, data: bytes) -> bool:
-        """바이트 데이터를 파일로 저장합니다."""
+        """바이트 데이터를 파일로 저장합니다.
+        
+        Args:
+            path (str): 파일 경로.
+            data (bytes): 저장할 데이터.
+            
+        Returns:
+            bool: 저장 성공 여부.
+        """
         try:
             full_path = self.base_path / path
             self.ensure_directory(str(full_path.parent.relative_to(self.base_path)))

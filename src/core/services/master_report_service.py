@@ -21,10 +21,10 @@ class MasterReportService:
     전체 워크플로우를 오케스트레이션하고 다른 서비스/어댑터에 위임합니다.
 
     Attributes:
-        storage (StoragePort): 파일 저장/로드 포트
-        data_service (MasterDataService): 데이터 처리 서비스
-        workbook_adapter (MasterWorkbookAdapter): 워크북 어댑터
-        file_map (Dict[str, str]): 리포트 키와 파일명 매핑
+        storage (StoragePort): 파일 저장/로드 포트.
+        data_service (MasterDataService): 데이터 처리 서비스.
+        workbook_adapter (MasterWorkbookAdapter): 워크북 어댑터.
+        file_map (Dict[str, str]): 리포트 키와 파일명 매핑.
     """
     
     def __init__(
@@ -38,11 +38,11 @@ class MasterReportService:
         """MasterReportService 초기화.
 
         Args:
-            source_storage: 데이터 로드용 저장소 (예: LocalStorageAdapter)
-            target_storages: 데이터 저장용 저장소 리스트 (예: [LocalStorage, GoogleDrive])
-            data_service: 데이터 처리 서비스
-            workbook_adapter: 워크북 어댑터
-            file_name_prefix: 파일명 연도 접두사
+            source_storage (StoragePort): 데이터 로드용 저장소 (예: LocalStorageAdapter).
+            target_storages (List[StoragePort]): 데이터 저장용 저장소 리스트 (예: [LocalStorage, GoogleDrive]).
+            data_service (MasterDataService): 데이터 처리 서비스.
+            workbook_adapter (MasterWorkbookAdapter): 워크북 어댑터.
+            file_name_prefix (str): 파일명 연도 접두사 (기본값: "2025").
         """
         self.source_storage = source_storage
         self.target_storages = target_storages
@@ -67,10 +67,10 @@ class MasterReportService:
         """마스터 리포트 전체 업데이트 워크플로우를 실행합니다.
         
         Args:
-            data_list: 업데이트할 KRX 데이터 리스트
+            data_list (List[KrxData]): 업데이트할 KRX 데이터 리스트.
             
         Returns:
-            각 리포트의 Top 20 종목 딕셔너리
+            Dict[str, List[str]]: 각 리포트의 Top 20 종목 딕셔너리.
         """
         print(f"[Service:MasterReport] 마스터 리포트 업데이트 시작...")
         
@@ -110,7 +110,16 @@ class MasterReportService:
         daily_data: pd.DataFrame,
         report_date: datetime.date
     ) -> List[str]:
-        """단일 리포트를 업데이트하고 Top 20 종목을 반환합니다."""
+        """단일 리포트를 업데이트하고 Top 20 종목을 반환합니다.
+        
+        Args:
+            report_key (str): 리포트 키.
+            daily_data (pd.DataFrame): 일별 데이터.
+            report_date (datetime.date): 리포트 날짜.
+            
+        Returns:
+            List[str]: Top 20 종목 리스트.
+        """
         file_name = self.file_map.get(report_key)
         if not file_name:
             print(f"    -> [Service:MasterReport] 🚨 알 수 없는 리포트 키: {report_key}")
@@ -138,7 +147,15 @@ class MasterReportService:
         )
 
     def _check_existing_pivot(self, file_path: str, pivot_sheet_name: str) -> Optional[List[str]]:
-        """이미 존재하는 피벗 시트가 있는지 확인하고, 있다면 Top 20 종목을 반환합니다."""
+        """이미 존재하는 피벗 시트가 있는지 확인하고, 있다면 Top 20 종목을 반환합니다.
+        
+        Args:
+            file_path (str): 파일 경로.
+            pivot_sheet_name (str): 피벗 시트 이름.
+            
+        Returns:
+            Optional[List[str]]: Top 20 종목 리스트, 없으면 None.
+        """
         if not self.source_storage.path_exists(file_path):
             return None
             
@@ -167,7 +184,18 @@ class MasterReportService:
         daily_data: pd.DataFrame,
         date_int: int
     ) -> List[str]:
-        """실제 데이터 업데이트 및 피벗 생성 로직을 수행합니다."""
+        """실제 데이터 업데이트 및 피벗 생성 로직을 수행합니다.
+        
+        Args:
+            file_path (str): 파일 경로.
+            sheet_name (str): 시트 이름.
+            pivot_sheet_name (str): 피벗 시트 이름.
+            daily_data (pd.DataFrame): 일별 데이터.
+            date_int (int): 날짜 정수.
+            
+        Returns:
+            List[str]: Top 20 종목 리스트.
+        """
         new_data = self.data_service.transform_to_excel_schema(daily_data, date_int)
         existing_data = self._load_existing_data(file_path, sheet_name)
         sheet_exists = not existing_data.empty or self.source_storage.path_exists(file_path)
@@ -191,7 +219,15 @@ class MasterReportService:
         file_path: str, 
         sheet_name: str
     ) -> pd.DataFrame:
-        """기존 엑셀 데이터를 로드합니다."""
+        """기존 엑셀 데이터를 로드합니다.
+        
+        Args:
+            file_path (str): 파일 경로.
+            sheet_name (str): 시트 이름.
+            
+        Returns:
+            pd.DataFrame: 로드된 DataFrame.
+        """
         if not self.source_storage.path_exists(file_path):
             print(f"    -> [Service:MasterReport] 새 파일이 생성됩니다")
             return pd.DataFrame(columns=self.data_service.excel_columns)

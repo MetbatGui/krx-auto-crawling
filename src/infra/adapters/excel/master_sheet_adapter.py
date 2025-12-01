@@ -19,14 +19,13 @@ class MasterSheetAdapter:
         new_data: pd.DataFrame,
         sheet_exists: bool
     ) -> None:
-        """
-        Raw 데이터 시트를 업데이트합니다.
+        """Raw 데이터 시트를 업데이트합니다.
         
         Args:
-            book: openpyxl Workbook
-            sheet_name: 시트 이름
-            new_data: 추가할 데이터
-            sheet_exists: 시트 존재 여부
+            book (Workbook): openpyxl Workbook.
+            sheet_name (str): 시트 이름.
+            new_data (pd.DataFrame): 추가할 데이터.
+            sheet_exists (bool): 시트 존재 여부.
         """
         if sheet_exists and sheet_name in book.sheetnames:
             # 기존 시트에 추가

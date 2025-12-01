@@ -12,7 +12,7 @@ class DailyExcelAdapter(DailyReportPort):
     DataFrame을 일별 엑셀 파일로 저장합니다.
 
     Attributes:
-        storages (List[StoragePort]): 파일 저장 포트 리스트
+        storages (List[StoragePort]): 파일 저장 포트 리스트.
     """
     
     NAME_MAP = {
@@ -26,7 +26,7 @@ class DailyExcelAdapter(DailyReportPort):
         """DailyExcelAdapter 초기화.
 
         Args:
-            storages: StoragePort 구현체 리스트 (예: [LocalStorageAdapter, GoogleDriveAdapter])
+            storages (List[StoragePort]): StoragePort 구현체 리스트 (예: [LocalStorageAdapter, GoogleDriveAdapter]).
         """
         self.storages = storages
         # 폴더는 저장 시점에 동적으로 생성되므로 초기화 시점에는 생성하지 않음
@@ -38,7 +38,7 @@ class DailyExcelAdapter(DailyReportPort):
         파일명 형식: {연도}년/{월}월/{투자자구분}/<날짜><시장><투자자>순매수.xlsx
 
         Args:
-            data_list: 저장할 KRX 데이터 리스트
+            data_list (List[KrxData]): 저장할 KRX 데이터 리스트.
         """
         for item in data_list:
             if item.data.empty:

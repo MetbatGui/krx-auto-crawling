@@ -14,7 +14,7 @@ class WatchlistFileAdapter(WatchlistPort):
     일별/누적 상위 종목을 HTS 업로드용 CSV 파일로 저장합니다.
 
     Attributes:
-        storages (List[StoragePort]): 파일 저장 포트 리스트
+        storages (List[StoragePort]): 파일 저장 포트 리스트.
     """
     
     REPORT_ORDER = ['KOSPI_foreigner', 'KOSDAQ_foreigner', 'KOSPI_institutions', 'KOSDAQ_institutions']
@@ -24,7 +24,7 @@ class WatchlistFileAdapter(WatchlistPort):
         """WatchlistFileAdapter 초기화.
 
         Args:
-            storages: StoragePort 구현체 리스트
+            storages (List[StoragePort]): StoragePort 구현체 리스트.
         """
         self.storages = storages
         # 폴더는 저장 시점에 동적으로 생성되므로 초기화 시점에는 생성하지 않음
@@ -37,7 +37,7 @@ class WatchlistFileAdapter(WatchlistPort):
         순서: KOSPI외국인 → KOSDAQ외국인 → KOSPI기관 → KOSDAQ기관
         
         Args:
-            data_list: KRX 데이터 리스트
+            data_list (List[KrxData]): KRX 데이터 리스트.
         """
         if not data_list:
             print("  [Adapter:WatchlistFile] ⚠️ 데이터가 없어 저장을 건너뜁니다")
@@ -71,8 +71,8 @@ class WatchlistFileAdapter(WatchlistPort):
         순서: KOSPI외국인 → KOSDAQ외국인 → KOSPI기관 → KOSDAQ기관
         
         Args:
-            top_stocks: 리포트별 상위 종목 딕셔너리
-            date_str: 날짜 문자열
+            top_stocks (Dict[str, List[str]]): 리포트별 상위 종목 딕셔너리.
+            date_str (str): 날짜 문자열.
         """
         if not top_stocks:
             print("  [Adapter:WatchlistFile] ⚠️ 누적 상위종목 데이터가 없어 저장을 건너뜁니다")
@@ -96,10 +96,10 @@ class WatchlistFileAdapter(WatchlistPort):
         """종목 리스트를 CSV 파일로 저장하는 공통 로직.
         
         Args:
-            top_stocks: 리포트별 종목 딕셔너리
-            date_str: 날짜 문자열
-            filename: 저장할 파일명
-            description: 로그용 설명
+            top_stocks (Dict[str, List[str]]): 리포트별 종목 딕셔너리.
+            date_str (str): 날짜 문자열.
+            filename (str): 저장할 파일명.
+            description (str): 로그용 설명.
         """
         # 정해진 순서대로 종목 수집 (80개)
         # 순서: KOSPI외국인 → KOSDAQ외국인 → KOSPI기관 → KOSDAQ기관

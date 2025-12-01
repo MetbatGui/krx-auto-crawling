@@ -29,11 +29,11 @@ class RankingDataService:
         교집합을 찾아 반환합니다.
         
         Args:
-            data_map: 시장별 데이터 딕셔너리
+            data_map (Dict[str, pd.DataFrame]): 시장별 데이터 딕셔너리.
                 예) {'KOSPI_foreigner': df1, 'KOSPI_institutions': df2, ...}
             
         Returns:
-            시장별 공통 종목 Set
+            Dict[str, Set[str]]: 시장별 공통 종목 Set.
                 예) {'KOSPI': {'삼성전자', 'SK하이닉스'}, 'KOSDAQ': {...}}
         """
         return {
@@ -66,10 +66,10 @@ class RankingDataService:
         """데이터 유효성을 검증합니다.
         
         Args:
-            data_list: 검증할 데이터 리스트
+            data_list (List): 검증할 데이터 리스트.
             
         Returns:
-            유효성 검증 결과
+            bool: 유효성 검증 결과.
         """
         if not data_list:
             print("[DataService:Ranking] ⚠️ 데이터가 없습니다")

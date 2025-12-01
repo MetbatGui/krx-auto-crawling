@@ -27,8 +27,14 @@ def crawl(
     date: str = typer.Argument(None, help="대상 날짜 (YYYYMMDD 형식, 기본값: 오늘)"),
     drive: bool = typer.Option(False, "--drive", "-d", help="Google Drive에도 저장할지 여부")
 ):
-    """
-    일일 크롤링 루틴을 실행합니다.
+    """일일 크롤링 루틴을 실행합니다.
+
+    KRX 데이터를 수집하고, 일별 리포트, 마스터 리포트, 순위 리포트 등을 생성하여 저장합니다.
+    기본적으로 로컬에 저장하며, `--drive` 옵션 사용 시 Google Drive에도 저장합니다.
+
+    Args:
+        date (str): 대상 날짜 (YYYYMMDD). 기본값은 오늘 날짜.
+        drive (bool): Google Drive 저장 여부.
     """
     # 1. 환경 변수 로드
     load_dotenv()

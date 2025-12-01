@@ -34,14 +34,15 @@ def master_service(fake_storage):
         file_name_prefix="2025"
     )
 
-def test_master_report_update_creates_new_file_if_not_exists(master_service, fake_storage):
+@pytest.mark.asyncio
+async def test_master_report_update_creates_new_file_if_not_exists(master_service, fake_storage):
     """파일이 없을 때 새로 생성하는지 검증"""
     # Given
     df = pd.DataFrame({'종목코드': ['005930'], '종목명': ['삼성전자'], '순매수_거래대금': [1000]})
     data = KrxData(Market.KOSPI, Investor.FOREIGNER, "20250101", df)
     
     # When
-    master_service.update_reports([data])
+    await master_service.update_reports([data])
     
     # Then
     expected_filename = "2025년/코스피외국인순매수도(2025).xlsx"
@@ -52,20 +53,21 @@ def test_master_report_update_creates_new_file_if_not_exists(master_service, fak
     assert "JAN" in wb.sheetnames
     assert "0101" in wb.sheetnames # 피벗 시트
 
-def test_master_report_update_appends_to_existing_file(master_service, fake_storage):
+@pytest.mark.asyncio
+async def test_master_report_update_appends_to_existing_file(master_service, fake_storage):
     """이미 파일이 있을 때 데이터를 추가하는지 검증"""
     # Given
     # 1. 먼저 파일 생성 (1월 1일 데이터)
     df1 = pd.DataFrame({'종목코드': ['005930'], '종목명': ['삼성전자'], '순매수_거래대금': [1000]})
     data1 = KrxData(Market.KOSPI, Investor.FOREIGNER, "20250101", df1)
-    master_service.update_reports([data1])
+    await master_service.update_reports([data1])
     
     # 2. 새로운 데이터 추가 (1월 2일 데이터)
     df2 = pd.DataFrame({'종목코드': ['000660'], '종목명': ['SK하이닉스'], '순매수_거래대금': [2000]})
     data2 = KrxData(Market.KOSPI, Investor.FOREIGNER, "20250102", df2)
     
     # When
-    master_service.update_reports([data2])
+    await master_service.update_reports([data2])
     
     # Then
     expected_filename = "2025년/코스피외국인순매수도(2025).xlsx"
@@ -79,14 +81,15 @@ def test_master_report_update_appends_to_existing_file(master_service, fake_stor
     ws = wb["JAN"]
     assert ws.max_row >= 3 
 
-def test_master_report_skips_empty_data(master_service, fake_storage):
+@pytest.mark.asyncio
+async def test_master_report_skips_empty_data(master_service, fake_storage):
     """빈 데이터는 처리를 건너뛰는지 검증"""
     # Given
     empty_df = pd.DataFrame()
     data = KrxData(Market.KOSPI, Investor.FOREIGNER, "20250101", empty_df)
     
     # When
-    master_service.update_reports([data])
+    await master_service.update_reports([data])
     
     # Then
     # 파일이 생성되지 않아야 함

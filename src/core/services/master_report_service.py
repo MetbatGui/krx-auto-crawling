@@ -5,6 +5,7 @@
 """
 import pandas as pd
 import datetime
+import asyncio
 from typing import Dict, List
 from pathlib import Path
 
@@ -62,7 +63,7 @@ class MasterReportService:
         for storage in self.target_storages:
             storage.ensure_directory(self.master_subdir)
     
-    def update_reports(self, data_list: List[KrxData]) -> Dict[str, List[str]]:
+    async def update_reports(self, data_list: List[KrxData]) -> Dict[str, List[str]]:
         """마스터 리포트 전체 업데이트 워크플로우를 실행합니다.
         
         Args:
@@ -75,18 +76,31 @@ class MasterReportService:
         
         top_stocks_map = {}
         
-        for item in data_list:
+        async def update_one(item: KrxData) -> Optional[tuple[str, List[str]]]:
             if item.data.empty:
                 print(f"  [Service:MasterReport] ⚠️  {item.key} 데이터가 비어있어 건너뜁니다.")
-                continue
+                return None
             
             try:
                 report_date = datetime.datetime.strptime(item.date_str, '%Y%m%d').date()
-                top_stocks = self._update_single_report(item.key, item.data, report_date)
+                # Heavy Excel I/O -> Thread
+                top_stocks = await asyncio.to_thread(
+                    self._update_single_report, item.key, item.data, report_date
+                )
                 if top_stocks:
-                    top_stocks_map[item.key] = top_stocks
+                    return (item.key, top_stocks)
             except Exception as e:
                 print(f"  [Service:MasterReport] 🚨 {item.key} 업데이트 실패: {e}")
+            return None
+
+        # 모든 데이터 아이템에 대해 비동기 실행
+        tasks = [update_one(item) for item in data_list]
+        results = await asyncio.gather(*tasks)
+        
+        for res in results:
+            if res:
+                key, stocks = res
+                top_stocks_map[key] = stocks
         
         return top_stocks_map
     

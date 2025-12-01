@@ -32,6 +32,21 @@ All commits must follow the format below to ensure a clean and readable history.
 | ✅ `:white_check_mark:` | `test` | Adding or updating tests |
 | 💄 `:lipstick:` | `style` | Code style changes (formatting, etc.) |
 | 🚑 `:ambulance:` | `hotfix` | Critical hotfix |
+| 👷 `:construction_worker:` | `ci` | CI/CD system or script changes |
+
+## Release Process
+
+To release the current `main` branch to the employer's repository (`employers-netbuy`), use the `just release` command.
+
+```bash
+just release
+```
+
+This command automates the following steps:
+1.  Checkout or create a local `release` branch.
+2.  Merge `main` into `release`.
+3.  Push `release` to `employers-netbuy:main`.
+4.  Switch back to `main`.
 
 ### Example
 

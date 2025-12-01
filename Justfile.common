@@ -36,3 +36,10 @@ clean:
 # Run healthcheck command in Docker
 docker-healthcheck:
     {{docker_compose}} -f docker/docker-compose.yml run --rm netbuy healthcheck
+
+# Release to employers-netbuy
+# Usage: just release
+release:
+    git checkout -B release main
+    git push -u employers-netbuy release:main
+    git checkout main

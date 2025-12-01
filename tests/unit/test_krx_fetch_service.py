@@ -4,7 +4,8 @@ from core.services.krx_fetch_service import KrxFetchService
 from core.domain.models import Market, Investor
 from tests.fakes.fake_krx_adapter import FakeKrxAdapter
 
-def test_fetch_all_data_success():
+@pytest.mark.asyncio
+async def test_fetch_all_data_success():
     """전체 데이터 수집 성공 케이스 검증"""
     # Given
     # 유효한 엑셀 바이너리 생성 (순매수_거래대금 컬럼 포함)
@@ -19,7 +20,7 @@ def test_fetch_all_data_success():
     service = KrxFetchService(krx_port=fake_adapter)
     
     # When
-    results = service.fetch_all_data("20250101")
+    results = await service.fetch_all_data("20250101")
     
     # Then
     # 4개 타겟(KOSPI/KOSDAQ * Foreigner/Institutions)에 대해 모두 성공해야 함

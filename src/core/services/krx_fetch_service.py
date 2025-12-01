@@ -1,4 +1,5 @@
 from typing import List, Optional
+import asyncio
 import datetime
 import pandas as pd
 import io
@@ -22,7 +23,7 @@ class KrxFetchService:
         """
         self.krx_port = krx_port
 
-    def fetch_all_data(self, date_str: Optional[str] = None) -> List[KrxData]:
+    async def fetch_all_data(self, date_str: Optional[str] = None) -> List[KrxData]:
         """모든 타겟(시장/투자자)에 대해 데이터를 수집하고 가공합니다.
 
         Args:
@@ -44,17 +45,21 @@ class KrxFetchService:
 
         print(f"[Service:KrxFetch] {date_str} 데이터 수집 시작...")
 
-        for market, investor in targets:
+        async def fetch_one(market: Market, investor: Investor) -> Optional[KrxData]:
             try:
-                # 1. 원본 데이터 수집
-                raw_bytes = self.krx_port.fetch_net_value_data(market, investor, date_str)
+                # 1. 원본 데이터 수집 (Blocking I/O -> Thread)
+                raw_bytes = await asyncio.to_thread(
+                    self.krx_port.fetch_net_value_data, market, investor, date_str
+                )
                 
-                # 2. 데이터 가공
-                df = self._parse_and_filter_data(raw_bytes)
+                # 2. 데이터 가공 (CPU Bound -> Thread recommended if heavy, but pandas is fast enough for small data)
+                # 여기서는 간단하므로 메인 스레드에서 처리하거나 to_thread로 감쌀 수 있음.
+                # 파싱도 to_thread로 감싸는 것이 안전함.
+                df = await asyncio.to_thread(self._parse_and_filter_data, raw_bytes)
                 
                 if df.empty:
                     print(f"  -> ⚠️ {market.value} {investor.value} 데이터가 비어있습니다 (휴장일 등).")
-                    continue
+                    return None
 
                 # 3. KrxData 객체 생성
                 krx_data = KrxData(
@@ -63,11 +68,19 @@ class KrxFetchService:
                     date_str=date_str,
                     data=df
                 )
-                results.append(krx_data)
                 print(f"  -> ✅ {market.value} {investor.value} 수집 및 가공 완료 ({len(df)}행)")
+                return krx_data
 
             except Exception as e:
                 print(f"  -> 🚨 {market.value} {investor.value} 처리 중 오류 발생: {e}")
+                return None
+
+        # 모든 타겟에 대해 비동기 실행
+        tasks = [fetch_one(m, i) for m, i in targets]
+        fetched_results = await asyncio.gather(*tasks)
+        
+        # None 제외하고 결과 리스트 구성
+        results = [r for r in fetched_results if r is not None]
 
         return results
 

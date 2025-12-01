@@ -2,6 +2,7 @@ import typer
 import datetime
 from dotenv import load_dotenv
 import os
+import asyncio
 
 # Services
 from core.services.daily_routine_service import DailyRoutineService
@@ -137,7 +138,7 @@ def crawl(
 
     # 7. 메인 루틴 실행
     try:
-        routine_service.execute(date_str=target_date)
+        asyncio.run(routine_service.execute(date_str=target_date))
     except Exception as e:
         typer.echo(f"\n🚨 [CLI] Critical Error during execution: {e}", err=True)
         raise typer.Exit(code=1)

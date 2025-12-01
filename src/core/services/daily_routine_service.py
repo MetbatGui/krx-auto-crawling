@@ -39,7 +39,7 @@ class DailyRoutineService:
         self.ranking_port = ranking_port
         self.watchlist_port = watchlist_port
 
-    def execute(self, date_str: Optional[str] = None):
+    async def execute(self, date_str: Optional[str] = None):
         """전체 일일 루틴을 실행합니다.
 
         다음 단계를 순차적으로 실행합니다:
@@ -55,7 +55,8 @@ class DailyRoutineService:
         """
         print(f"\n=== [DailyRoutineService] 루틴 시작 (Date: {date_str}) ===")
 
-        data_list = self.fetch_service.fetch_all_data(date_str)
+        # Async Fetch
+        data_list = await self.fetch_service.fetch_all_data(date_str)
         
         if not data_list:
             print("=== [DailyRoutineService] 🚨 수집된 데이터가 없습니다. 루틴을 종료합니다. ===")
@@ -67,7 +68,8 @@ class DailyRoutineService:
         self.daily_port.save_daily_reports(data_list)
 
         print("\n--- [Step 2] 마스터 리포트 업데이트 ---")
-        top_stocks_map = self.master_port.update_reports(data_list)
+        # Async Master Report Update
+        top_stocks_map = await self.master_port.update_reports(data_list)
 
         print("\n--- [Step 3] 누적 상위종목 watchlist 저장 ---")
         if top_stocks_map:

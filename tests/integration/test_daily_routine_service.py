@@ -102,13 +102,14 @@ def daily_routine_service(fake_storage, fake_krx):
         watchlist_port=watchlist_adapter
     )
 
-def test_daily_routine_execution_flow(daily_routine_service, fake_storage):
+@pytest.mark.asyncio
+async def test_daily_routine_execution_flow(daily_routine_service, fake_storage):
     """전체 루틴이 에러 없이 실행되고, 결과 파일들이 저장소에 생성되는지 검증"""
     # Given
     target_date = "20250101"
     
     # When
-    daily_routine_service.execute(date_str=target_date)
+    await daily_routine_service.execute(date_str=target_date)
     
     # Then
     # 1. 일별 리포트 생성 확인

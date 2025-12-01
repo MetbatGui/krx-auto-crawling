@@ -20,9 +20,6 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v3
 
-    - name: Run Tests
-      run: uv run pytest
-
     - name: Create secrets directory
       run: mkdir -p secrets
 

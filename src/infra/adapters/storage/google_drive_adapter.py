@@ -222,23 +222,18 @@ class GoogleDriveAdapter(StoragePort):
             # 메모리에 CSV 생성 (BytesIO 사용을 위해 인코딩 처리)
             # pandas to_csv는 file-like object에 str을 쓰므로 StringIO가 필요하지만,
             # Drive API는 bytes가 필요함.
-            # TextIOWrapper로 감싸거나, to_csv에서 encoding을 지정하고 mode='wb'는 지원 안함.
-            # 간단히: to_csv -> string -> bytes
-            csv_str = df.to_csv(**kwargs)
-            if csv_str is None: # path가 None이면 string 반환
-                 # kwargs에 path_or_buf가 없어야 함.
-                 pass
             
-            # kwargs에 path_or_buf가 있으면 안됨. 
-            # 호출 측에서 path를 넘기지 않으므로 df.to_csv(None, ...) 형태가 되어야 함.
-            # 하지만 StoragePort 인터페이스는 path를 받음.
-            # 구현:
+            # kwargs에서 encoding 추출 (기본값: utf-8-sig)
+            encoding = kwargs.pop('encoding', 'utf-8-sig')
+            
             output_str = io.StringIO()
             df.to_csv(output_str, **kwargs)
-            output_bytes = io.BytesIO(output_str.getvalue().encode('utf-8-sig')) # Excel 호환 인코딩
+            
+            # 추출한 encoding으로 bytes 변환
+            output_bytes = io.BytesIO(output_str.getvalue().encode(encoding))
 
             self._upload_file(output_bytes, path, 'text/csv')
-            print(f"[GoogleDrive] ✅ CSV 업로드: {path}")
+            print(f"[GoogleDrive] ✅ CSV 업로드: {path} (encoding: {encoding})")
             return True
         except Exception as e:
             print(f"[GoogleDrive] 🚨 CSV 업로드 실패 ({path}): {e}")

@@ -2,8 +2,8 @@ name: Daily KRX Crawling
 
 on:
   schedule:
-    # Run at 16:00 KST (07:00 UTC) on weekdays
-    - cron: '0 7 * * 1-5'
+    # Run at 16:01 KST (07:01 UTC) on weekdays to avoid congestion
+    - cron: '1 7 * * 1-5'
   workflow_dispatch:
 
 jobs:

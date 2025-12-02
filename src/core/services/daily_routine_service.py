@@ -68,8 +68,8 @@ class DailyRoutineService:
         self.daily_port.save_daily_reports(data_list)
 
         print("\n--- [Step 2] 마스터 리포트 업데이트 ---")
-        # Async Master Report Update
-        top_stocks_map = await self.master_port.update_reports(data_list)
+        # Master Report Update
+        top_stocks_map = self.master_port.update_reports(data_list)
 
         print("\n--- [Step 3] 누적 상위종목 watchlist 저장 ---")
         if top_stocks_map:

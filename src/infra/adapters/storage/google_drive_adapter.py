@@ -223,8 +223,8 @@ class GoogleDriveAdapter(StoragePort):
             # pandas to_csv는 file-like object에 str을 쓰므로 StringIO가 필요하지만,
             # Drive API는 bytes가 필요함.
             
-            # kwargs에서 encoding 추출 (기본값: utf-8-sig)
-            encoding = kwargs.pop('encoding', 'utf-8-sig')
+            # kwargs에서 encoding 추출 (기본값: cp949)
+            encoding = kwargs.pop('encoding', 'cp949')
             
             output_str = io.StringIO()
             df.to_csv(output_str, **kwargs)

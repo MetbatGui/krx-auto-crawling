@@ -43,3 +43,8 @@ release:
     git checkout -B release main
     git push -u employers-netbuy release:main
     git checkout main
+
+# Run auth command locally (requires browser interaction)
+# Usage: just auth
+auth:
+    uv run netbuy auth

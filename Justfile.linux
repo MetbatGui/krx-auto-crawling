@@ -11,6 +11,4 @@ docker_compose := "docker compose"
 
 import 'Justfile.common'
 
-# Run auth command
-auth:
-    uv run netbuy auth
+

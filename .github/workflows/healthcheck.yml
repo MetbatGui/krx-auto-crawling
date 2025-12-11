@@ -30,9 +30,6 @@ jobs:
         echo "KRX_DOWNLOAD_URL=http://data.krx.co.kr/comm/bldAttendant/getCsvData.cmd" >> .env
         echo "GOOGLE_DRIVE_ROOT_FOLDER_ID=${{ secrets.GOOGLE_DRIVE_ROOT_FOLDER_ID }}" >> .env
 
-    - name: Run Auth
-      run: just -f Justfile.linux auth
-
     - name: Run Healthcheck
       run: |
         just -f Justfile.linux docker-healthcheck

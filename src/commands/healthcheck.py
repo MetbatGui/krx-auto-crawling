@@ -11,21 +11,17 @@ def healthcheck():
     """
     load_dotenv()
     
-    CLIENT_SECRET_FILE = "secrets/client_secret.json"
-    SERVICE_ACCOUNT_FILE = "secrets/service-account.json"
+    SERVICE_ACCOUNT_FILE = "secrets/service_account.json"
     ROOT_FOLDER_ID = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID")
     
     typer.echo("--- [CLI] 헬스 체크 시작 ---")
     
     # 1. Credential File Check
-    if os.path.exists(CLIENT_SECRET_FILE):
-        typer.echo(f"✅ 인증 파일 확인됨: {CLIENT_SECRET_FILE} (OAuth)")
-        adapter = GoogleDriveAdapter(client_secret_file=CLIENT_SECRET_FILE, root_folder_id=ROOT_FOLDER_ID)
-    elif os.path.exists(SERVICE_ACCOUNT_FILE):
+    if os.path.exists(SERVICE_ACCOUNT_FILE):
         typer.echo(f"✅ 인증 파일 확인됨: {SERVICE_ACCOUNT_FILE} (Service Account)")
         adapter = GoogleDriveAdapter(service_account_file=SERVICE_ACCOUNT_FILE, root_folder_id=ROOT_FOLDER_ID)
     else:
-        typer.echo("❌ 인증 파일을 찾을 수 없습니다!")
+        typer.echo(f"❌ 인증 파일을 찾을 수 없습니다: {SERVICE_ACCOUNT_FILE}")
         raise typer.Exit(code=1)
         
     # 2. Drive Access & Root Folder Check

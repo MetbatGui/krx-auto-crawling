@@ -9,10 +9,6 @@ import openpyxl
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 from google.oauth2 import service_account
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request
-from google_auth_oauthlib.flow import InstalledAppFlow
-
 from core.ports.storage_port import StoragePort
 
 
@@ -20,11 +16,10 @@ class GoogleDriveAdapter(StoragePort):
     """Google Drive 저장소 Adapter.
 
     StoragePort를 구현하여 Google Drive에 데이터를 저장하고 로드합니다.
-    OAuth 2.0 또는 Service Account를 사용하여 인증합니다.
+    Service Account를 사용하여 인증합니다.
 
     Attributes:
-        service_account_file (str): Service Account 키 파일 경로 (Optional).
-        client_secret_file (str): OAuth 2.0 Client Secret 파일 경로 (Optional).
+        service_account_file (str): Service Account 키 파일 경로.
         drive_service (Any): Google Drive API 서비스 객체.
         root_folder_id (str): 루트 폴더 ID (없으면 'root').
     """
@@ -33,27 +28,28 @@ class GoogleDriveAdapter(StoragePort):
 
     def __init__(
         self, 
-        service_account_file: Optional[str] = None, 
-        client_secret_file: Optional[str] = None,
+        service_account_file: str, 
         root_folder_name: str = "KRX_Auto_Crawling_Data", 
         root_folder_id: Optional[str] = None
     ):
         """GoogleDriveAdapter 초기화.
 
         Args:
-            service_account_file (Optional[str]): Service Account JSON 키 파일 경로.
-            client_secret_file (Optional[str]): OAuth 2.0 Client Secret JSON 파일 경로.
+            service_account_file (str): Service Account JSON 키 파일 경로.
             root_folder_name (str): 데이터를 저장할 최상위 폴더 이름 (root_folder_id가 없을 때 사용).
             root_folder_id (Optional[str]): 데이터를 저장할 최상위 폴더 ID (우선순위 높음).
         
         Raises:
-            ValueError: service_account_file과 client_secret_file이 모두 제공되지 않은 경우.
+            ValueError: service_account_file이 제공되지 않은 경우.
+            FileNotFoundError: service_account_file이 존재하지 않는 경우.
         """
         self.service_account_file = service_account_file
-        self.client_secret_file = client_secret_file
         
-        if not self.service_account_file and not self.client_secret_file:
-            raise ValueError("Either service_account_file or client_secret_file must be provided.")
+        if not self.service_account_file:
+            raise ValueError("service_account_file must be provided.")
+            
+        if not os.path.exists(self.service_account_file):
+             raise FileNotFoundError(f"Service account file not found: {self.service_account_file}")
 
         self.drive_service = self._authenticate()
         
@@ -65,50 +61,14 @@ class GoogleDriveAdapter(StoragePort):
             print(f"[GoogleDrive] 초기화 완료 (Root: {root_folder_name}, ID: {self.root_folder_id})")
 
     def _authenticate(self):
-        """Google Drive API 인증 (OAuth 2.0 우선, 실패 시 Service Account)."""
-        creds = None
-        
-        # 1. OAuth 2.0 (Client Secret) 방식 시도
-        if self.client_secret_file and os.path.exists(self.client_secret_file):
-            token_path = os.path.join(os.path.dirname(self.client_secret_file), 'token.json')
-            
-            # 기존 토큰 로드
-            if os.path.exists(token_path):
-                try:
-                    creds = Credentials.from_authorized_user_file(token_path, self.SCOPES)
-                except Exception as e:
-                    print(f"[GoogleDrive] ⚠️ 토큰 로드 실패: {e}")
-                    creds = None
-            
-            # 토큰이 없거나 유효하지 않으면 새로 발급
-            if not creds or not creds.valid:
-                if creds and creds.expired and creds.refresh_token:
-                    try:
-                        creds.refresh(Request())
-                    except Exception as e:
-                        print(f"[GoogleDrive] ⚠️ 토큰 갱신 실패: {e}")
-                        creds = None
-
-                if not creds:
-                    flow = InstalledAppFlow.from_client_secrets_file(
-                        self.client_secret_file, self.SCOPES)
-                    creds = flow.run_local_server(port=0)
-                
-                # 토큰 저장 (JSON)
-                with open(token_path, 'w') as token:
-                    token.write(creds.to_json())
-            
-            return build('drive', 'v3', credentials=creds)
-
-        # 2. Service Account 방식 시도
-        elif self.service_account_file and os.path.exists(self.service_account_file):
+        """Google Drive API 인증 (Service Account)."""
+        try:
             creds = service_account.Credentials.from_service_account_file(
                 self.service_account_file, scopes=self.SCOPES
             )
             return build('drive', 'v3', credentials=creds)
-        
-        else:
-            raise FileNotFoundError("No valid credential files found.")
+        except Exception as e:
+            raise RuntimeError(f"Service Account 인증 실패: {e}")
 
     def _get_or_create_folder(self, folder_name: str, parent_id: str = 'root') -> str:
         """폴더를 찾거나 생성합니다.

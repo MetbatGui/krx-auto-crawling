@@ -20,8 +20,7 @@ jobs:
     - name: Create Secrets
       run: |
         mkdir -p secrets
-        echo '${{ secrets.GOOGLE_CLIENT_SECRET_JSON }}' > secrets/client_secret.json
-        echo '${{ secrets.GOOGLE_TOKEN_JSON }}' > secrets/token.json
+        echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > secrets/service_account.json
         chmod -R 777 secrets
 
     - name: Create .env file

@@ -51,8 +51,7 @@ def crawl(
 
     # 3. 기본 경로 및 설정
     BASE_OUTPUT_PATH = "output"
-    SERVICE_ACCOUNT_FILE = "secrets/service-account.json"
-    CLIENT_SECRET_FILE = "secrets/client_secret.json"
+    SERVICE_ACCOUNT_FILE = "secrets/service_account.json"
     
     # 4. StoragePort 인스턴스 생성
     # 모드에 따라 배타적으로 동작 (Local Only OR Drive Only)
@@ -63,20 +62,14 @@ def crawl(
         # Google Drive Mode
         root_folder_id = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID")
         try:
-            if os.path.exists(CLIENT_SECRET_FILE):
-                print(f"[CLI] OAuth 2.0 인증 사용 ({CLIENT_SECRET_FILE})")
-                drive_storage = GoogleDriveAdapter(
-                    client_secret_file=CLIENT_SECRET_FILE,
-                    root_folder_id=root_folder_id
-                )
-            elif os.path.exists(SERVICE_ACCOUNT_FILE):
+            if os.path.exists(SERVICE_ACCOUNT_FILE):
                 print(f"[CLI] Service Account 인증 사용 ({SERVICE_ACCOUNT_FILE})")
                 drive_storage = GoogleDriveAdapter(
                     service_account_file=SERVICE_ACCOUNT_FILE,
                     root_folder_id=root_folder_id
                 )
             else:
-                typer.echo(f"🚨 [CLI] Google Drive 인증 파일 없음 (secrets/client_secret.json 또는 service-account.json 필요)", err=True)
+                typer.echo(f"🚨 [CLI] Google Drive 인증 파일 없음 ({SERVICE_ACCOUNT_FILE} 필요)", err=True)
                 raise typer.Exit(code=1)
             
             typer.echo(f"--- [CLI] Storage Mode: Google Drive Only ---")

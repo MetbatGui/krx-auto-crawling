@@ -1,4 +1,9 @@
 import typer
+import warnings
+
+# Suppress benign openpyxl warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+
 from commands.crawl import crawl
 from commands.auth import auth
 from commands.healthcheck import healthcheck

@@ -34,7 +34,7 @@ def download(
 
     # 3. 기본 경로 및 설정
     BASE_OUTPUT_PATH = "output"
-    SERVICE_ACCOUNT_FILE = "secrets/service-account.json"
+    TOKEN_FILE = "secrets/token.json"
     CLIENT_SECRET_FILE = "secrets/client_secret.json"
     ROOT_FOLDER_ID = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID")
 
@@ -45,10 +45,13 @@ def download(
     drive_storage = None
 
     try:
-        if os.path.exists(CLIENT_SECRET_FILE):
-            drive_storage = GoogleDriveAdapter(client_secret_file=CLIENT_SECRET_FILE, root_folder_id=ROOT_FOLDER_ID)
-        elif os.path.exists(SERVICE_ACCOUNT_FILE):
-            drive_storage = GoogleDriveAdapter(service_account_file=SERVICE_ACCOUNT_FILE, root_folder_id=ROOT_FOLDER_ID)
+        if os.path.exists(TOKEN_FILE):
+             print(f"[CLI] Google Drive 인증 (OAuth Token) 사용 ({TOKEN_FILE})")
+             drive_storage = GoogleDriveAdapter(
+                token_file=TOKEN_FILE,
+                root_folder_id=ROOT_FOLDER_ID,
+                client_secret_file=CLIENT_SECRET_FILE if os.path.exists(CLIENT_SECRET_FILE) else None
+            )
         else:
             typer.echo("🚨 [CLI] 인증 파일을 찾을 수 없습니다. Drive에서 다운로드할 수 없습니다.", err=True)
             raise typer.Exit(code=1)

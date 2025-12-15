@@ -55,9 +55,16 @@ def crawl(
     CLIENT_SECRET_FILE = "secrets/client_secret.json"
     
     # 4. StoragePort 인스턴스 생성
-    # 모드에 따라 배타적으로 동작 (Local Only OR Drive Only)
-    save_storages = []
-    source_storage = None
+    # 모드에 따라 배타적으로 동작 (Local Only OR Drive Only) -> Hybrid Mode로 변경
+    # --drive 옵션 시:
+    #   Source: Google Drive (싱크를 맞추기 위해)
+    #   Target: [Local, Google Drive] (양쪽 다 저장)
+    
+    # 항상 로컬 저장소는 초기화
+    local_storage = LocalStorageAdapter(base_path=BASE_OUTPUT_PATH)
+    
+    save_storages = [local_storage]
+    source_storage = local_storage
 
     if drive:
         # Google Drive Mode
@@ -70,15 +77,20 @@ def crawl(
                     root_folder_id=root_folder_id,
                     client_secret_file=CLIENT_SECRET_FILE if os.path.exists(CLIENT_SECRET_FILE) else None
                 )
+                
+                typer.echo(f"--- [CLI] Storage Mode: Hybrid (Source: Drive, Target: Local+Drive) ---")
+                
+                # Source를 Drive로 변경하여 최신 데이터를 가져옴
+                source_storage = drive_storage
+                
+                # 저장 대상에 Drive 추가
+                save_storages.append(drive_storage)
+                
             else:
                 typer.echo(f"🚨 [CLI] Google Drive 토큰 파일 없음 ({TOKEN_FILE})", err=True)
                 typer.echo("`netbuy auth` 명령어를 실행하여 인증을 먼저 진행해주세요.", err=True)
                 raise typer.Exit(code=1)
             
-            typer.echo(f"--- [CLI] Storage Mode: Google Drive Only ---")
-            save_storages = [drive_storage]
-            source_storage = drive_storage
-
         except Exception as e:
             typer.echo(f"🚨 [CLI] Google Drive 초기화 실패: {e}", err=True)
             raise typer.Exit(code=1)
@@ -86,9 +98,6 @@ def crawl(
     else:
         # Local Mode (Default)
         typer.echo(f"--- [CLI] Storage Mode: Local Only ---")
-        local_storage = LocalStorageAdapter(base_path=BASE_OUTPUT_PATH)
-        save_storages = [local_storage]
-        source_storage = local_storage
 
     # 5. 어댑터(Adapters) 인스턴스 생성 및 의존성 주입
     # (Infra Layer)

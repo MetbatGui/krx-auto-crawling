@@ -3,7 +3,7 @@ from typing import List
 
 from core.ports.daily_report_port import DailyReportPort
 from core.ports.storage_port import StoragePort
-from core.domain.models import KrxData
+from core.domain.models import KrxData, Market, Investor
 
 
 class DailyExcelAdapter(DailyReportPort):
@@ -22,15 +22,17 @@ class DailyExcelAdapter(DailyReportPort):
         'KOSDAQ_institutions': '코스닥기관',
     }
 
-    def __init__(self, storages: List[StoragePort]):
+    def __init__(self, storages: List[StoragePort], source_storage: StoragePort = None):
         """DailyExcelAdapter 초기화.
 
         Args:
             storages (List[StoragePort]): StoragePort 구현체 리스트 (예: [LocalStorageAdapter, GoogleDriveAdapter]).
+            source_storage (StoragePort, optional): 데이터 로드용 소스 스토리지. 없으면 storages[0] 사용.
         """
         self.storages = storages
+        self.source_storage = source_storage if source_storage else storages[0]
         # 폴더는 저장 시점에 동적으로 생성되므로 초기화 시점에는 생성하지 않음
-        print(f"[Adapter:DailyExcel] 초기화 완료 (저장소 {len(self.storages)}개)")
+        print(f"[Adapter:DailyExcel] 초기화 완료 (저장소 {len(self.storages)}개, 소스: {self.source_storage.__class__.__name__})")
 
     def save_daily_reports(self, data_list: List[KrxData]) -> None:
         """수집된 데이터 리스트를 각각의 일별 엑셀 파일로 저장합니다.
@@ -71,3 +73,66 @@ class DailyExcelAdapter(DailyReportPort):
 
             except Exception as e:
                 print(f"  [Adapter:DailyExcel] 🚨 {item.key} 저장 실패: {e}")
+
+    def load_daily_reports(self, date_str: str) -> List[KrxData]:
+        """해당 날짜의 일별 리포트 파일들을 로드합니다.
+        
+        저장된 4개의 파일(코스피/코스닥 + 기관/외국인)이 모두 존재해야 성공으로 간주합니다.
+        
+        Args:
+            date_str (str): 날짜 문자열 (YYYYMMDD).
+
+        Returns:
+            List[KrxData]: 복원된 KrxData 리스트. 하나라도 없으면 빈 리스트.
+        """
+        restored_data = []
+        
+        # 복원 대상 키 정의 (순서 무관)
+        target_keys = [
+            ('KOSPI_foreigner', Market.KOSPI, Investor.FOREIGNER),
+            ('KOSPI_institutions', Market.KOSPI, Investor.INSTITUTIONS),
+            ('KOSDAQ_foreigner', Market.KOSDAQ, Investor.FOREIGNER),
+            ('KOSDAQ_institutions', Market.KOSDAQ, Investor.INSTITUTIONS),
+        ]
+        
+        print(f"[Adapter:DailyExcel] {date_str} 파일 로드 시도 (Source: {self.source_storage.__class__.__name__})...")
+        
+        for key, market, investor in target_keys:
+            try:
+                # 파일 이름 및 경로 재구성 (저장 로직과 동일해야 함)
+                korean_name_part = self.NAME_MAP.get(key, key)
+                year = date_str[:4]
+                month = date_str[4:6]
+                investor_type = "외국인" if "foreigner" in key else "기관"
+                
+                filename = f"{year}년/{month}월/{investor_type}/{date_str}{korean_name_part}순매수.xlsx"
+                
+                # 지정된 Source Storage에서 로드
+                df = self.source_storage.load_dataframe(filename)
+                
+                if df.empty:
+                    print(f"  [Adapter:DailyExcel] ⚠️ 파일이 없습니다: {filename}")
+                    return [] # 하나라도 없으면 실패 처리
+                
+
+                
+                # 데이터 전처리 복원 (문자열 '1,234' -> 숫자 1234)
+                if '거래대금_순매수' in df.columns:
+                    # 쉼표 제거 및 숫자 변환 (Error 'coerce' -> NaN)
+                    df['거래대금_순매수'] = df['거래대금_순매수'].astype(str).str.replace(',', '').apply(pd.to_numeric, errors='coerce')
+                
+                # KrxData 객체 생성
+                krx_data = KrxData(
+                    market=market,
+                    investor=investor,
+                    date_str=date_str,
+                    data=df
+                )
+                restored_data.append(krx_data)
+                
+            except Exception as e:
+                print(f"  [Adapter:DailyExcel] 🚨 파일 로드 중 오류 ({key}): {e}")
+                return []
+
+        print(f"[Adapter:DailyExcel] ✅ {len(restored_data)}개 파일 로드 및 데이터 복원 완료")
+        return restored_data

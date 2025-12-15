@@ -102,7 +102,7 @@ def crawl(
     # 5. 어댑터(Adapters) 인스턴스 생성 및 의존성 주입
     # (Infra Layer)
     krx_adapter = KrxHttpAdapter()
-    daily_adapter = DailyExcelAdapter(storages=save_storages)
+    daily_adapter = DailyExcelAdapter(storages=save_storages, source_storage=source_storage)
     watchlist_adapter = WatchlistFileAdapter(storages=save_storages)
     
     # Master 관련 어댑터들

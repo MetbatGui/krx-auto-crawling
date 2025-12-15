@@ -113,7 +113,10 @@ class MasterReportService:
             return []
         
         file_path = f"{self.master_subdir}/{file_name}"
-        sheet_name = report_date.strftime('%b').upper()
+        
+        # Locale 독립적인 월 이름 생성 (항상 JAN, FEB, ..., DEC)
+        MONTH_NAMES = ["", "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
+        sheet_name = MONTH_NAMES[report_date.month]
         pivot_sheet_name = report_date.strftime('%m%d')
         date_int = int(report_date.strftime('%Y%m%d'))
         
@@ -151,7 +154,9 @@ class MasterReportService:
             existing_pivot = self.source_storage.load_dataframe(
                 file_path, 
                 sheet_name=pivot_sheet_name,
-                engine='openpyxl'
+                engine='openpyxl',
+                header=2,
+                index_col=0
             )
             
             if not existing_pivot.empty:
@@ -224,11 +229,16 @@ class MasterReportService:
                 file_path,
                 sheet_name=sheet_name,
                 engine='openpyxl',
-                skiprows=1,
-                dtype={'일자': int}
+                skiprows=1
             )
             
             if not df.empty and all(col in df.columns for col in self.data_service.excel_columns):
+                # 데이터 전처리: 빈 행 제거 및 타입 변환
+                df = df.dropna(subset=['일자'])
+                df['일자'] = pd.to_numeric(df['일자'], errors='coerce')
+                df = df.dropna(subset=['일자']) # 변환 실패(NaN) 제거
+                df['일자'] = df['일자'].astype(int)
+                
                 result = df[self.data_service.excel_columns].copy()
                 print(f"    -> [Service:MasterReport] 기존 '{sheet_name}' 시트 데이터 ({len(result)}줄) 로드 완료")
                 return result

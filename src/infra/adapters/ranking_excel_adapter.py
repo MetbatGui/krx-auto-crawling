@@ -87,6 +87,11 @@ class RankingExcelAdapter(RankingReportPort):
         
         self._update_sheet_content(new_sheet, report_date, data_map, common_stocks)
         
+        # 템플릿 시트 제거 (사용자 요청)
+        if 'template' in book.sheetnames:
+            del book['template']
+            print(f"    -> [Adapter:RankingExcel] 'template' 시트 제거 완료")
+        
         return self._save_workbook(book)
     
     def _load_workbook(self) -> Workbook | None:
@@ -143,9 +148,15 @@ class RankingExcelAdapter(RankingReportPort):
             
             
             
-            print(f"    -> [Adapter:RankingExcel] '{sheet_name}' 시트 생성 완료")
+            # 시트 보호 해제 (편집 가능하도록 설정)
+            if new_sheet.protection:
+                new_sheet.protection.sheet = False
+            
+            print(f"    -> [Adapter:RankingExcel] '{sheet_name}' 시트 생성 완료 (보호 해제됨)")
             return new_sheet
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             print(f"    -> [Adapter:RankingExcel] 🚨 시트 생성 실패: {e}")
             return None
     

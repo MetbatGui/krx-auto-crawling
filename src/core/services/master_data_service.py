@@ -32,12 +32,13 @@ class MasterDataService:
             pd.DataFrame: 변환된 DataFrame (일자, 종목, 금액 컬럼).
         """
         try:
-            # 날짜 정수를 datetime 객체로 변환
-            date_obj = pd.to_datetime(str(date_int), format='%Y%m%d')
+            # 날짜 정수를 문자열 'YYYYMMDD'로 변환
+            # date_int가 20251229 --> "20251229"
+            date_str = str(date_int)
             
             formatted_df = (
                 pd.DataFrame({
-                    '일자': date_obj,
+                    '일자': date_str,
                     '종목': daily_data['종목명'],
                     '금액': pd.to_numeric(daily_data['순매수_거래대금'])
                 })
@@ -68,17 +69,19 @@ class MasterDataService:
         if existing_df.empty:
             return False
         
-        # 날짜 정수를 datetime 객체로 변환하여 비교
+        # 날짜 정수를 문자열로 변환하여 비교
         try:
-            target_date = pd.to_datetime(str(date_int), format='%Y%m%d')
-            is_duplicate = target_date in existing_df['일자'].values
+            target_date_str = str(date_int)
+            # existing_df['일자']가 문자열인지, datetime인지, 숫자인지 확인 필요
+            # 안전하게 문자열로 변환하여 비교
+            existing_dates = existing_df['일자'].astype(str).values
+            is_duplicate = target_date_str in existing_dates
             
             if is_duplicate:
                 print(f"    -> [Service:MasterData] ⚠️ {date_int} 데이터 중복 발견")
             
             return is_duplicate
         except Exception:
-            # 변환 실패 시 기존 방식(혹시 모를 호환성) 시도
              return date_int in existing_df['일자'].values
 
     def merge_data(

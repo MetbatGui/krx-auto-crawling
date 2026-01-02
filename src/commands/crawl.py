@@ -123,16 +123,14 @@ def crawl(
         source_storage=source_storage, 
         target_storages=save_storages,
         data_service=master_data_service,
-        workbook_adapter=master_workbook_adapter,
-        file_name_prefix="2025"
+        workbook_adapter=master_workbook_adapter
     )
     
     # Ranking 서비스 조립 (헥사고날 아키텍처)
     ranking_data_service = RankingDataService(top_n=30)
     ranking_report_adapter = RankingExcelAdapter(
         source_storage=source_storage, 
-        target_storages=save_storages,
-        file_name="2025년/일별수급정리표/2025일별수급순위정리표.xlsx"
+        target_storages=save_storages
     )
     ranking_service = RankingAnalysisService(
         data_service=ranking_data_service,

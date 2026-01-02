@@ -38,11 +38,12 @@ class RankingExcelAdapter(RankingReportPort):
     # 기본 템플릿 경로 상수 (StorageRoot 기준)
     DEFAULT_TEMPLATE_PATH = "template/template_일별수급순위정리표.xlsx"
     
+    DEFAULT_TEMPLATE_PATH = "template/template_일별수급순위정리표.xlsx"
+    
     def __init__(
         self, 
         source_storage: StoragePort, 
         target_storages: List[StoragePort], 
-        file_name: str = "2025일별수급순위정리표.xlsx",
         template_file_path: str = None
     ):
         """RankingExcelAdapter 초기화.
@@ -50,15 +51,14 @@ class RankingExcelAdapter(RankingReportPort):
         Args:
             source_storage (StoragePort): 파일을 로드할 저장소 (예: GoogleDriveAdapter).
             target_storages (List[StoragePort]): 파일을 저장할 저장소 리스트 (예: [LocalStorageAdapter, GoogleDriveAdapter]).
-            file_name (str): Excel 파일명.
             template_file_path (str): 템플릿 파일 경로 (Optional).
         """
         self.source_storage = source_storage
         self.target_storages = target_storages
-        self.file_path = file_name
+        self.file_path = None # update_report 시 결정됨
         self.template_file_path = template_file_path or self.DEFAULT_TEMPLATE_PATH
         
-        print(f"[Adapter:RankingExcel] 초기화 완료 (파일: {self.file_path}, 템플릿: {self.template_file_path})")
+        print(f"[Adapter:RankingExcel] 초기화 완료 (템플릿: {self.template_file_path})")
     
     def update_report(
         self,
@@ -76,6 +76,10 @@ class RankingExcelAdapter(RankingReportPort):
         Returns:
             bool: 성공 여부.
         """
+        # 동적 파일 경로 설정 ({Year}년/일별수급정리표/{Year}일별수급순위정리표.xlsx)
+        year = report_date.year
+        self.file_path = f"{year}년/일별수급정리표/{year}일별수급순위정리표.xlsx"
+        
         book = self._load_workbook()
         if not book:
             return False
@@ -101,22 +105,45 @@ class RankingExcelAdapter(RankingReportPort):
         print(f"    -> [Adapter:RankingExcel] 로드 시도 ({self.source_storage.__class__.__name__})...")
         
         # 파일이 존재하는지 확인
+        # 파일이 존재하는지 확인
         if not self.source_storage.path_exists(self.file_path):
             print(f"    -> [Adapter:RankingExcel] 파일이 없어 템플릿 복사를 시도합니다: {self.template_file_path}")
             
-            # 템플릿 파일 로드 (바이트)
-            template_data = self.source_storage.get_file(self.template_file_path)
+            # 템플릿 파일 로드 (항상 로컬 파일시스템 사용)
+            # source_storage가 Google Drive일 경우에도 템플릿은 로컬에서 읽어서 사용하기 위함
+            import os
+            template_data = None
+            
+            # 로컬 경로 찾기 시도 (CWD 기준 또는 output 폴더 기준)
+            candidates = [
+                self.template_file_path,
+                os.path.join("output", self.template_file_path)
+            ]
+            
+            real_template_path = None
+            for p in candidates:
+                if os.path.exists(p):
+                    real_template_path = p
+                    break
+            
+            try:
+                if real_template_path:
+                    print(f"    -> [Adapter:RankingExcel] 로컬 템플릿 파일 발견: {real_template_path}")
+                    with open(real_template_path, 'rb') as f:
+                        template_data = f.read()
+            except Exception as e:
+                print(f"    -> [Adapter:RankingExcel] 🚨 로컬 템플릿 읽기 오류: {e}")
+
             if template_data:
-                # 타겟 경로에 템플릿 저장 (Source Storage에 우선 저장)
+                # 타겟 경로에 템플릿 저장 (Source Storage에 우선 저장하여 로드 가능하게 함)
                 # 주의: 로드는 source_storage에서 하므로, source_storage에 파일이 있어야 함.
-                # 보통 source_storage는 로컬이거나 공유 드라이브일 것임.
                 if self.source_storage.put_file(self.file_path, template_data):
-                    print(f"    -> [Adapter:RankingExcel] 템플릿 복사 성공")
+                    print(f"    -> [Adapter:RankingExcel] 템플릿 복사 및 업로드 성공")
                 else:
-                    print(f"    -> [Adapter:RankingExcel] 🚨 템플릿 저장 실패")
+                    print(f"    -> [Adapter:RankingExcel] 🚨 템플릿 저장(업로드) 실패")
                     return None
             else:
-                print(f"    -> [Adapter:RankingExcel] 🚨 템플릿 파일을 찾을 수 없습니다: {self.template_file_path}")
+                print(f"    -> [Adapter:RankingExcel] 🚨 로컬 템플릿 파일을 찾을 수 없습니다: {self.template_file_path}")
                 # 템플릿이 없으면 새 파일 생성 로직으로 갈 수도 있지만, 여기서는 실패 처리
                 return None
 

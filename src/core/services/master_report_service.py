@@ -31,8 +31,7 @@ class MasterReportService:
         source_storage: StoragePort,
         target_storages: List[StoragePort],
         data_service: MasterDataService,
-        workbook_adapter: MasterWorkbookAdapter,
-        file_name_prefix: str = "2025"
+        workbook_adapter: MasterWorkbookAdapter
     ):
         """MasterReportService 초기화.
 
@@ -41,7 +40,6 @@ class MasterReportService:
             target_storages (List[StoragePort]): 데이터 저장용 저장소 리스트 (예: [LocalStorage, GoogleDrive]).
             data_service (MasterDataService): 데이터 처리 서비스.
             workbook_adapter (MasterWorkbookAdapter): 워크북 어댑터.
-            file_name_prefix (str): 파일명 연도 접두사 (기본값: "2025").
         """
         self.source_storage = source_storage
         self.target_storages = target_storages

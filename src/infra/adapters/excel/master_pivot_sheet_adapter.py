@@ -83,9 +83,10 @@ class MasterPivotSheetAdapter:
             for cell in row:
                 cell.fill = header_fill
                 # 4행의 날짜 컬럼들에 대해 포맷 적용 (B열부터, 총계 제외)
-                # 단순하게 모든 4행 헤더에 대해 적용 시도 (텍스트여도 무방함)
+                # 날짜가 정수(20251229)로 들어오므로 별도의 날짜 포맷팅 불필요
+                # 만약 포맷을 적용하면 Serial Date로 해석되어 엉뚱한 날짜가 나옴
                 if row[0].row == 4:
-                    cell.number_format = 'yyyymmdd'
+                    pass
     
     def _apply_top20_format(self, ws, data_start_row, red_font):
         """Top 30 빨간색 폰트 적용"""
@@ -95,19 +96,27 @@ class MasterPivotSheetAdapter:
     
     def _apply_top5_format(self, ws, pivot_data, date_int, data_start_row, top_5_fills):
         """당일 Top 5 배경색 적용"""
-        if date_int not in pivot_data.columns:
+        # date_int (20251229)가 int로 들어오지만, 피벗 헤더는 문자열("20251229")일 수 있음
+        # 두 가지 경우 모두 체크
+        target_col_val = None
+        if date_int in pivot_data.columns:
+            target_col_val = date_int
+        elif str(date_int) in pivot_data.columns:
+            target_col_val = str(date_int)
+            
+        if target_col_val is None:
             return
         
         try:
             # 총계 제외한 피벗에서 날짜 열 찾기
             pivot_without_total = pivot_data.drop(columns=['총계']) if '총계' in pivot_data.columns else pivot_data
-            if date_int not in pivot_without_total.columns:
+            if target_col_val not in pivot_without_total.columns:
                 return
             
-            date_col_idx = list(pivot_without_total.columns).index(date_int)
+            date_col_idx = list(pivot_without_total.columns).index(target_col_val)
             target_col = date_col_idx + 2  # 인덱스 열 고려
             
-            top_5_series = pivot_data[date_int].nlargest(5)
+            top_5_series = pivot_data[target_col_val].nlargest(5)
             top_5_series = top_5_series[top_5_series > 0]
             top_5_map = {stock: fill for stock, fill in zip(top_5_series.index, top_5_fills)}
             

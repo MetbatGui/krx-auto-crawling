@@ -27,6 +27,22 @@ class MasterSheetAdapter:
             new_data (pd.DataFrame): 추가할 데이터.
             sheet_exists (bool): 시트 존재 여부.
         """
+        # 날짜 컬럼 포맷팅 강제 변환 (datetime -> str 'YYYYMMDD')
+        if '일자' in new_data.columns:
+            # datetime 객체인 경우에만 변환, 이미 문자열/숫자면 그대로 둘 수도 있지만 안전하게 처리
+            if pd.api.types.is_datetime64_any_dtype(new_data['일자']):
+                new_data['일자'] = new_data['일자'].dt.strftime('%Y%m%d')
+            else:
+                 # 타임스탬프 문자열이나 다른 형식일 수 있으므로 datetime으로 변환 후 다시 포맷팅
+                try:
+                    # 이미 포맷된 문자열(20251229)이 아닌 경우 등 처리
+                    temp_dates = pd.to_datetime(new_data['일자'], errors='coerce')
+                    # NaT가 아닌 것들만 변환
+                    mask = temp_dates.notna()
+                    new_data.loc[mask, '일자'] = temp_dates[mask].dt.strftime('%Y%m%d')
+                except Exception as e:
+                    print(f"    -> [Adapter:MasterSheet] 날짜 변환 중 경고: {e}")
+
         if sheet_exists and sheet_name in book.sheetnames:
             # 기존 시트에 추가
             ws = book[sheet_name]
@@ -44,11 +60,12 @@ class MasterSheetAdapter:
             for row in dataframe_to_rows(new_data, index=False, header=False):
                 ws.append(row)
         
-        # 날짜 포맷 적용 (A열)
+        # A열(날짜) 텍스트/숫자 서식 보정
+        # 이미 문자열로 넣었으므로 number_format='@' (Text) 또는 General로 충분
         # 1행: 빈 행, 2행: 헤더, 3행부터 데이터
-        for row in ws.iter_rows(min_row=3, max_row=ws.max_row, min_col=1, max_col=1):
-            for cell in row:
-                cell.number_format = 'yyyymmdd'
+        # for row in ws.iter_rows(min_row=3, max_row=ws.max_row, min_col=1, max_col=1):
+        #    for cell in row:
+        #        cell.number_format = 'General'  # 혹시 모를 서식 초기화
         
         # 컬럼 자동 너비 조정
         from infra.adapters.excel.excel_formatter import ExcelFormatter

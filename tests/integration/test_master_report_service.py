@@ -39,13 +39,13 @@ async def test_master_report_update_creates_new_file_if_not_exists(master_servic
     """파일이 없을 때 새로 생성하는지 검증"""
     # Given
     df = pd.DataFrame({'종목코드': ['005930'], '종목명': ['삼성전자'], '순매수_거래대금': [1000]})
-    data = KrxData(Market.KOSPI, Investor.FOREIGNER, "20250101", df)
+    data = KrxData(Market.KOSPI, Investor.FOREIGNER, "20260101", df)
     
     # When
-    await master_service.update_reports([data])
+    master_service.update_reports([data])
     
     # Then
-    expected_filename = "2025년/코스피외국인순매수도(2025).xlsx"
+    expected_filename = "2026년/01월/코스피외국인순매수도_202601.xlsx"
     assert expected_filename in fake_storage.workbooks
     
     # 시트 생성 확인 (JAN 시트)
@@ -59,18 +59,18 @@ async def test_master_report_update_appends_to_existing_file(master_service, fak
     # Given
     # 1. 먼저 파일 생성 (1월 1일 데이터)
     df1 = pd.DataFrame({'종목코드': ['005930'], '종목명': ['삼성전자'], '순매수_거래대금': [1000]})
-    data1 = KrxData(Market.KOSPI, Investor.FOREIGNER, "20250101", df1)
-    await master_service.update_reports([data1])
+    data1 = KrxData(Market.KOSPI, Investor.FOREIGNER, "20260101", df1)
+    master_service.update_reports([data1])
     
     # 2. 새로운 데이터 추가 (1월 2일 데이터)
     df2 = pd.DataFrame({'종목코드': ['000660'], '종목명': ['SK하이닉스'], '순매수_거래대금': [2000]})
-    data2 = KrxData(Market.KOSPI, Investor.FOREIGNER, "20250102", df2)
+    data2 = KrxData(Market.KOSPI, Investor.FOREIGNER, "20260102", df2)
     
     # When
-    await master_service.update_reports([data2])
+    master_service.update_reports([data2])
     
     # Then
-    expected_filename = "2025년/코스피외국인순매수도(2025).xlsx"
+    expected_filename = "2026년/01월/코스피외국인순매수도_202601.xlsx"
     wb = fake_storage.workbooks[expected_filename]
     
     # 시트 확인
@@ -86,10 +86,10 @@ async def test_master_report_skips_empty_data(master_service, fake_storage):
     """빈 데이터는 처리를 건너뛰는지 검증"""
     # Given
     empty_df = pd.DataFrame()
-    data = KrxData(Market.KOSPI, Investor.FOREIGNER, "20250101", empty_df)
+    data = KrxData(Market.KOSPI, Investor.FOREIGNER, "20260101", empty_df)
     
     # When
-    await master_service.update_reports([data])
+    master_service.update_reports([data])
     
     # Then
     # 파일이 생성되지 않아야 함

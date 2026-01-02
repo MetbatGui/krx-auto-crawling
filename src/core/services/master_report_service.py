@@ -48,20 +48,14 @@ class MasterReportService:
         self.data_service = data_service
         self.workbook_adapter = workbook_adapter
         
-        # 파일 경로 설정
-        self.master_subdir = f"{file_name_prefix}년"
-        year_suffix = f"({file_name_prefix})"
+        # 파일명 매핑 (파일명 생성용 기본 이름)
         self.file_map: Dict[str, str] = {
-            'KOSPI_foreigner': f'코스피외국인순매수도{year_suffix}.xlsx',
-            'KOSDAQ_foreigner': f'코스닥외국인순매수도{year_suffix}.xlsx',
-            'KOSPI_institutions': f'코스피기관순매수도{year_suffix}.xlsx',
-            'KOSDAQ_institutions': f'코스닥기관순매수도{year_suffix}.xlsx',
+            'KOSPI_foreigner': '코스피외국인순매수도',
+            'KOSDAQ_foreigner': '코스닥외국인순매수도',
+            'KOSPI_institutions': '코스피기관순매수도',
+            'KOSDAQ_institutions': '코스닥기관순매수도',
         }
         
-        # 순매수도 디렉토리 생성 (모든 타겟 저장소에)
-        for storage in self.target_storages:
-            storage.ensure_directory(self.master_subdir)
-    
     def update_reports(self, data_list: List[KrxData]) -> Dict[str, List[str]]:
         """마스터 리포트 전체 업데이트 워크플로우를 실행합니다.
         
@@ -107,12 +101,24 @@ class MasterReportService:
         Returns:
             List[str]: Top 20 종목 리스트.
         """
-        file_name = self.file_map.get(report_key)
-        if not file_name:
+        base_name = self.file_map.get(report_key)
+        if not base_name:
             print(f"    -> [Service:MasterReport] 🚨 알 수 없는 리포트 키: {report_key}")
             return []
         
-        file_path = f"{self.master_subdir}/{file_name}"
+        # 동적 경로 및 파일명 생성
+        # 구조: {Year}년/{Month}월/{BaseName}_{YYYYMM}.xlsx
+        year = report_date.year
+        month = report_date.month
+        yyyymm = report_date.strftime('%Y%m')
+        
+        subdir = f"{year}년/{month:02d}월"
+        file_name = f"{base_name}_{yyyymm}.xlsx"
+        file_path = f"{subdir}/{file_name}"
+        
+        # 디렉토리 확인 및 생성 (타겟 저장소별)
+        for storage in self.target_storages:
+            storage.ensure_directory(subdir)
         
         # Locale 독립적인 월 이름 생성 (항상 JAN, FEB, ..., DEC)
         MONTH_NAMES = ["", "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
@@ -120,7 +126,7 @@ class MasterReportService:
         pivot_sheet_name = report_date.strftime('%m%d')
         date_int = int(report_date.strftime('%Y%m%d'))
         
-        print(f"    -> [Service:MasterReport] {file_name} 업데이트 시작...")
+        print(f"    -> [Service:MasterReport] {file_name} 업데이트 시작... (경로: {subdir})")
         
         # 1. 이미 존재하는 피벗 시트 확인 (최적화)
         existing_top_stocks = self._check_existing_pivot(file_path, pivot_sheet_name)
@@ -161,7 +167,7 @@ class MasterReportService:
             
             if not existing_pivot.empty:
                 print(f"    -> [Service:MasterReport] ⚠️ {pivot_sheet_name} 피벗 시트가 이미 존재하여 업데이트를 건너뜁니다.")
-                return self.data_service.extract_top_stocks(existing_pivot, top_n=20)
+                return self.data_service.extract_top_stocks(existing_pivot, top_n=30)
                 
         except Exception as e:
             print(f"    -> [Service:MasterReport] 피벗 시트 확인 중 오류 (무시하고 진행): {e}")
@@ -204,7 +210,8 @@ class MasterReportService:
             new_data, pivot_data, date_int, sheet_exists
         )
         
-        return self.data_service.extract_top_stocks(pivot_data, top_n=20)
+        # Top 30 반환
+        return self.data_service.extract_top_stocks(pivot_data, top_n=30)
     
     def _load_existing_data(
         self, 
@@ -235,9 +242,12 @@ class MasterReportService:
             if not df.empty and all(col in df.columns for col in self.data_service.excel_columns):
                 # 데이터 전처리: 빈 행 제거 및 타입 변환
                 df = df.dropna(subset=['일자'])
-                df['일자'] = pd.to_numeric(df['일자'], errors='coerce')
+                
+                # '일자' 컬럼이 datetime인지 확인하고, 아니면 변환 시도
+                if not pd.api.types.is_datetime64_any_dtype(df['일자']):
+                     df['일자'] = pd.to_datetime(df['일자'], errors='coerce')
+                
                 df = df.dropna(subset=['일자']) # 변환 실패(NaN) 제거
-                df['일자'] = df['일자'].astype(int)
                 
                 result = df[self.data_service.excel_columns].copy()
                 print(f"    -> [Service:MasterReport] 기존 '{sheet_name}' 시트 데이터 ({len(result)}줄) 로드 완료")

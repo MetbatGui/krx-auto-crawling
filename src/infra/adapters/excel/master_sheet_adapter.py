@@ -44,4 +44,10 @@ class MasterSheetAdapter:
             for row in dataframe_to_rows(new_data, index=False, header=False):
                 ws.append(row)
         
+        # 날짜 포맷 적용 (A열)
+        # 1행: 빈 행, 2행: 헤더, 3행부터 데이터
+        for row in ws.iter_rows(min_row=3, max_row=ws.max_row, min_col=1, max_col=1):
+            for cell in row:
+                cell.number_format = 'yyyymmdd'
+        
         print(f"    -> [Adapter:MasterSheet] Raw 시트 업데이트 완료")

@@ -74,14 +74,18 @@ class MasterPivotSheetAdapter:
             print(f"    -> [Adapter:MasterPivotSheet] ⚠️ 빈 피벗 시트 생성")
     
     def _apply_header_format(self, ws, max_col, header_fill):
-        """헤더 배경색 적용"""
+        """헤더 배경색 및 날짜 포맷 적용"""
         for row in ws.iter_rows(min_row=3, max_row=4, min_col=1, max_col=max_col):
             for cell in row:
                 cell.fill = header_fill
+                # 4행의 날짜 컬럼들에 대해 포맷 적용 (B열부터, 총계 제외)
+                # 단순하게 모든 4행 헤더에 대해 적용 시도 (텍스트여도 무방함)
+                if row[0].row == 4:
+                    cell.number_format = 'yyyymmdd'
     
     def _apply_top20_format(self, ws, data_start_row, red_font):
-        """Top 20 빨간색 폰트 적용"""
-        safe_end_row = min(data_start_row + 19, ws.max_row)
+        """Top 30 빨간색 폰트 적용"""
+        safe_end_row = min(data_start_row + 29, ws.max_row)
         for row in ws.iter_rows(min_row=data_start_row, max_row=safe_end_row, min_col=1, max_col=1):
             row[0].font = red_font
     

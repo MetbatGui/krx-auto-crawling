@@ -32,9 +32,12 @@ class MasterDataService:
             pd.DataFrame: 변환된 DataFrame (일자, 종목, 금액 컬럼).
         """
         try:
+            # 날짜 정수를 datetime 객체로 변환
+            date_obj = pd.to_datetime(str(date_int), format='%Y%m%d')
+            
             formatted_df = (
                 pd.DataFrame({
-                    '일자': date_int,
+                    '일자': date_obj,
                     '종목': daily_data['종목명'],
                     '금액': pd.to_numeric(daily_data['순매수_거래대금'])
                 })
@@ -65,13 +68,19 @@ class MasterDataService:
         if existing_df.empty:
             return False
         
-        is_duplicate = date_int in existing_df['일자'].values
-        
-        if is_duplicate:
-            print(f"    -> [Service:MasterData] ⚠️ {date_int} 데이터 중복 발견")
-        
-        return is_duplicate
-    
+        # 날짜 정수를 datetime 객체로 변환하여 비교
+        try:
+            target_date = pd.to_datetime(str(date_int), format='%Y%m%d')
+            is_duplicate = target_date in existing_df['일자'].values
+            
+            if is_duplicate:
+                print(f"    -> [Service:MasterData] ⚠️ {date_int} 데이터 중복 발견")
+            
+            return is_duplicate
+        except Exception:
+            # 변환 실패 시 기존 방식(혹시 모를 호환성) 시도
+             return date_int in existing_df['일자'].values
+
     def merge_data(
         self,
         existing_df: pd.DataFrame,
@@ -143,13 +152,13 @@ class MasterDataService:
     def extract_top_stocks(
         self,
         pivot_data: pd.DataFrame,
-        top_n: int = 20
+        top_n: int = 30
     ) -> List[str]:
         """피벗 데이터에서 총계 기준 상위 N개 종목명을 추출합니다.
         
         Args:
             pivot_data (pd.DataFrame): 피벗 DataFrame (총계 컬럼 포함).
-            top_n (int): 추출할 상위 종목 개수 (기본 20).
+            top_n (int): 추출할 상위 종목 개수 (기본 30).
             
         Returns:
             List[str]: 상위 N개 종목명 리스트.

@@ -11,7 +11,7 @@ class RankingDataService:
     Excel 등 기술 구현 세부사항에 의존하지 않습니다.
     """
     
-    def __init__(self, top_n: int = 20):
+    def __init__(self, top_n: int = 30):
         """RankingDataService 초기화.
 
         Args:

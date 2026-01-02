@@ -50,7 +50,7 @@ class WatchlistFileAdapter(WatchlistPort):
         for item in data_list:
             if item.data.empty or '종목명' not in item.data.columns:
                 continue
-            top_stocks_map[item.key] = item.data['종목명'].head(self.TOP_N).tolist()
+            top_stocks_map[item.key] = item.data['종목명'].head(self.TOP_N).tolist()[:self.TOP_N]
         
         if not top_stocks_map:
             print("  [Adapter:WatchlistFile] ⚠️ 저장할 종목이 없습니다")
@@ -106,7 +106,8 @@ class WatchlistFileAdapter(WatchlistPort):
         all_stock_names = []
         for key in self.REPORT_ORDER:
             if key in top_stocks:
-                all_stock_names.extend(top_stocks[key])
+                # Top N개 제한 (입력 데이터가 더 많을 경우를 대비)
+                all_stock_names.extend(top_stocks[key][:self.TOP_N])
         
         if not all_stock_names:
             print(f"  [Adapter:WatchlistFile] ⚠️ 저장할 {description}이 없습니다")

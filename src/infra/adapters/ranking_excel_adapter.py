@@ -1,11 +1,11 @@
-"""순위표 Excel 리포트 어댑터"""
-
 import datetime
 import pandas as pd
-from typing import Dict, Set
+from typing import Dict, Set, List, Optional
 from openpyxl.workbook.workbook import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
-from openpyxl.styles import PatternFill
+from openpyxl.styles import PatternFill, Alignment
+from openpyxl.cell.rich_text import TextBlock, CellRichText
+from openpyxl.cell.text import InlineFont
 
 from core.ports.ranking_report_port import RankingReportPort
 from core.ports.storage_port import StoragePort
@@ -26,14 +26,13 @@ class RankingExcelAdapter(RankingReportPort):
     
     TOP_N = 30
     LAYOUT_MAP = {
-        'KOSPI_foreigner': {'stock_col': 'E', 'value_col': 'F', 'start_row': 5, 'market': 'KOSPI'},
-        'KOSPI_institutions': {'stock_col': 'H', 'value_col': 'I', 'start_row': 5, 'market': 'KOSPI'},
-        'KOSDAQ_foreigner': {'stock_col': 'L', 'value_col': 'M', 'start_row': 5, 'market': 'KOSDAQ'},
-        'KOSDAQ_institutions': {'stock_col': 'O', 'value_col': 'P', 'start_row': 5, 'market': 'KOSDAQ'},
+        'KOSPI_foreigner': {'stock_col': 'E', 'value_col': 'F', 'rank_col': 'D', 'start_row': 5, 'market': 'KOSPI'},
+        'KOSPI_institutions': {'stock_col': 'H', 'value_col': 'I', 'rank_col': 'G', 'start_row': 5, 'market': 'KOSPI'},
+        'KOSDAQ_foreigner': {'stock_col': 'L', 'value_col': 'M', 'rank_col': 'K', 'start_row': 5, 'market': 'KOSDAQ'},
+        'KOSDAQ_institutions': {'stock_col': 'O', 'value_col': 'P', 'rank_col': 'N', 'start_row': 5, 'market': 'KOSDAQ'},
     }
     # Top 30 기준 Clear Range: 5행부터 34행까지 (30개)
-    DATA_RANGE_TO_CLEAR = "E5:P34"
-    COLUMNS_TO_AUTOFIT = ['E', 'H', 'L', 'O']
+    COLUMNS_TO_AUTOFIT = [chr(i) for i in range(ord('C'), ord('P') + 1)]
     KOREAN_WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
     
     # 기본 템플릿 경로 상수 (StorageRoot 기준)
@@ -81,11 +80,14 @@ class RankingExcelAdapter(RankingReportPort):
         if not book:
             return False
         
+        # 이전 순위 파싱 (새 시트 생성 전에 수행)
+        previous_rankings = self._parse_previous_rankings(book)
+        
         new_sheet = self._create_new_sheet(book, report_date)
         if not new_sheet:
             return False
         
-        self._update_sheet_content(new_sheet, report_date, data_map, common_stocks)
+        self._update_sheet_content(new_sheet, report_date, data_map, common_stocks, previous_rankings)
         
         # 템플릿 시트 제거 (사용자 요청)
         if 'template' in book.sheetnames:
@@ -125,6 +127,36 @@ class RankingExcelAdapter(RankingReportPort):
             return None
             
         return book
+
+    def _parse_previous_rankings(self, book: Workbook) -> Dict[str, Dict[str, int]]:
+        """마지막 시트에서 이전 순위를 파싱합니다."""
+        rankings = {}
+        
+        # 시트가 없거나 'template' 하나뿐이면 이전 데이터 없음
+        if not book.worksheets or (len(book.worksheets) == 1 and 'template' in book.sheetnames):
+            return rankings
+            
+        # 마지막 시트 (직전 거래일)
+        last_sheet = book.worksheets[-1]
+        print(f"    -> [Adapter:RankingExcel] 이전 순위 데이터 파싱 (Source: {last_sheet.title})")
+        
+        for key, layout in self.LAYOUT_MAP.items():
+            section_ranks = {}
+            stock_col = layout['stock_col']
+            start_row = layout['start_row']
+            
+            # Top N 만큼 순회
+            for i in range(self.TOP_N):
+                row = start_row + i
+                stock_cell = last_sheet[f"{stock_col}{row}"]
+                stock_name = stock_cell.value
+                
+                if stock_name and isinstance(stock_name, str):
+                    section_ranks[stock_name] = i + 1  # 1-based rank
+            
+            rankings[key] = section_ranks
+            
+        return rankings
     
     def _create_new_sheet(self, book: Workbook, report_date: datetime.date) -> Worksheet | None:
         """새로운 시트를 생성합니다 (템플릿 시트 복제)."""
@@ -165,12 +197,13 @@ class RankingExcelAdapter(RankingReportPort):
         sheet: Worksheet,
         report_date: datetime.date,
         data_map: Dict[str, pd.DataFrame],
-        common_stocks: Dict[str, Set[str]]
+        common_stocks: Dict[str, Set[str]],
+        previous_rankings: Dict[str, Dict[str, int]]
     ):
         """시트 내용을 업데이트합니다."""
         self._update_headers(sheet, report_date)
         self._clear_data_area(sheet)
-        self._paste_data_and_apply_format(sheet, data_map, common_stocks)
+        self._paste_data_and_apply_format(sheet, data_map, common_stocks, previous_rankings)
         self._apply_autofit(sheet)
     
     def _update_headers(self, sheet: Worksheet, report_date: datetime.date):
@@ -185,17 +218,32 @@ class RankingExcelAdapter(RankingReportPort):
         sheet['B5'] = self.KOREAN_WEEKDAYS[report_date.weekday()]
     
     def _clear_data_area(self, sheet: Worksheet):
-        """데이터 영역을 초기화합니다."""
-        for row in sheet[self.DATA_RANGE_TO_CLEAR]:
-            for cell in row:
-                cell.value = None
-                cell.fill = PatternFill()
+        """데이터 영역을 초기화합니다. (레이아웃에 정의된 데이터 컬럼만 초기화)"""
+        # 레이아웃에 정의된 컬럼만 선택적으로 초기화하여 J열(순위 등)은 유지
+        clear_limit = self.TOP_N + 5  # TOP_N 보다 조금 더 넉넉하게 초기화
+        
+        for key, layout in self.LAYOUT_MAP.items():
+            # Stock, Value, Rank 컬럼 초기화
+            cols_to_clear = [layout['stock_col'], layout['value_col']]
+            if 'rank_col' in layout:
+                cols_to_clear.append(layout['rank_col'])
+            
+            start_row = layout['start_row']
+            
+            for col in cols_to_clear:
+                for i in range(clear_limit):
+                    row_idx = start_row + i
+                    cell = sheet[f"{col}{row_idx}"]
+                    cell.value = None
+                    # Rank 컬럼은 서식을 유지하거나 재설정하는데, RichText를 쓰려면 초기화가 나음
+                    cell.fill = PatternFill()
     
     def _paste_data_and_apply_format(
         self,
         sheet: Worksheet,
         data_map: Dict[str, pd.DataFrame],
-        common_stocks: Dict[str, Set[str]]
+        common_stocks: Dict[str, Set[str]],
+        previous_rankings: Dict[str, Dict[str, int]]
     ):
         """데이터를 붙여넣고 서식을 적용합니다."""
         for key, layout in self.LAYOUT_MAP.items():
@@ -203,8 +251,29 @@ class RankingExcelAdapter(RankingReportPort):
             if df is None or df.empty:
                 continue
             
+            # DataFrame 붙여넣기 (종목명, 금액)
             pasted_count = ExcelSheetBuilder.paste_ranking_data(sheet, df, layout, self.TOP_N)
             
+            # 순위 변동 기입 (Rich Text)
+            prev_section_ranks = previous_rankings.get(key, {})
+            rank_col = layout.get('rank_col')
+            stock_col = layout['stock_col']
+            start_row = layout['start_row']
+            
+            if rank_col:
+                for i in range(pasted_count):
+                    current_rank = i + 1
+                    row = start_row + i
+                    stock_name = sheet[f"{stock_col}{row}"].value
+                    
+                    prev_rank = prev_section_ranks.get(stock_name)
+                    diff = None
+                    if prev_rank:
+                        diff = prev_rank - current_rank
+                    
+                    self._write_rank_change(sheet, rank_col, row, diff)
+            
+            # 공통 종목 색칠
             market = layout['market']
             if market in common_stocks:
                 ExcelFormatter.apply_common_stock_fill(
@@ -216,7 +285,41 @@ class RankingExcelAdapter(RankingReportPort):
                 )
             
             ExcelSheetBuilder.clear_ranking_remaining_rows(sheet, layout, pasted_count, self.TOP_N)
-    
+            
+    def _write_rank_change(self, sheet: Worksheet, col: str, row: int, diff: int | None):
+        """순위 변동을 Rich Text로 기입합니다."""
+        cell = sheet[f"{col}{row}"]
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        
+        if diff is None:  # New Entry
+            cell.value = "✨"
+            return
+
+        abs_diff = abs(diff)
+        
+        if diff >= 15:
+            # 급상승 (Big Red Triangle + Black Number)
+            # Bold Red Triangle
+            symbol = TextBlock(InlineFont(color='FF0000', sz=14, b=True), "▲")
+            number = TextBlock(InlineFont(color='000000', sz=11), str(abs_diff))
+            cell.value = CellRichText([symbol, number])
+            
+        elif diff > 0:
+            # 상승 (Red Triangle + Black Number)
+            symbol = TextBlock(InlineFont(color='FF0000'), "▲")
+            number = TextBlock(InlineFont(color='000000'), str(abs_diff))
+            cell.value = CellRichText([symbol, number])
+            
+        elif diff < 0:
+            # 하락 (Blue Triangle + Black Number)
+            symbol = TextBlock(InlineFont(color='0000FF'), "▼")
+            number = TextBlock(InlineFont(color='000000'), str(abs_diff))
+            cell.value = CellRichText([symbol, number])
+            
+        else:
+            # 유지
+            cell.value = "-"
+            
     def _apply_autofit(self, sheet: Worksheet):
         """열 너비를 자동 조정합니다."""
         for col in self.COLUMNS_TO_AUTOFIT:

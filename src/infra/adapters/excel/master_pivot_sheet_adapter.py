@@ -69,6 +69,10 @@ class MasterPivotSheetAdapter:
             self._apply_top20_format(pivot_ws, data_start_row, red_font)
             self._apply_top5_format(pivot_ws, pivot_data, date_int, data_start_row, top_5_fills)
             
+            # 컬럼 자동 너비 조정
+            from infra.adapters.excel.excel_formatter import ExcelFormatter
+            ExcelFormatter.apply_autofit(pivot_ws)
+            
             print(f"    -> [Adapter:MasterPivotSheet] 피벗 시트 서식 적용 완료")
         else:
             print(f"    -> [Adapter:MasterPivotSheet] ⚠️ 빈 피벗 시트 생성")

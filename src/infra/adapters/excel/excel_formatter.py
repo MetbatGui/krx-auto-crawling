@@ -163,3 +163,44 @@ class ExcelFormatter:
             width (float): 너비 값.
         """
         ws.column_dimensions[column_letter].width = width
+
+    @staticmethod
+    def apply_autofit(ws: Worksheet, min_col: int = 1, max_col: int = None, padding: float = 2.0):
+        """열 너비를 내용에 맞춰 자동 조정합니다 (BestFit 근사).
+        
+        Args:
+            ws (Worksheet): 워크시트.
+            min_col (int): 시작 열 인덱스 (1부터 시작).
+            max_col (int): 종료 열 인덱스. None이면 전체.
+            padding (float): 추가 여백.
+        """
+        from openpyxl.utils import get_column_letter
+        
+        if max_col is None:
+            max_col = ws.max_column
+            
+        for col_idx in range(min_col, max_col + 1):
+            col_letter = get_column_letter(col_idx)
+            max_length = 0
+            
+            # 해당 열의 모든 셀을 순회하며 최대 길이 계산
+            for cell in ws[col_letter]:
+                try:
+                    if cell.value:
+                        cell_len = len(str(cell.value))
+                        # 한글(2바이트) 고려: 간단히 길이를 1.5배 가중치
+                        if any(ord(c) > 127 for c in str(cell.value)):
+                             cell_len = int(cell_len * 1.5)
+                        
+                        if cell_len > max_length:
+                            max_length = cell_len
+                except:
+                    pass
+            
+            # 계산된 너비 적용 (기본값 + 패딩)
+            # 엑셀의 컬럼 너비 단위는 대략 문자 수 + 여백
+            adjusted_width = (max_length + padding)
+            # 너무 좁거나 넓지 않게 제한
+            adjusted_width = max(8, min(adjusted_width, 60))
+            
+            ws.column_dimensions[col_letter].width = adjusted_width

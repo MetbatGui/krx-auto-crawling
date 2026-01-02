@@ -50,4 +50,8 @@ class MasterSheetAdapter:
             for cell in row:
                 cell.number_format = 'yyyymmdd'
         
+        # 컬럼 자동 너비 조정
+        from infra.adapters.excel.excel_formatter import ExcelFormatter
+        ExcelFormatter.apply_autofit(ws)
+        
         print(f"    -> [Adapter:MasterSheet] Raw 시트 업데이트 완료")

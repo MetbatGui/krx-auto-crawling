@@ -64,9 +64,26 @@ class DailyExcelAdapter(DailyReportPort):
                      # 쉼표 포맷팅을 위해 문자열로 변환
                     df_to_save['거래대금_순매수'] = df_to_save['거래대금_순매수'].apply(lambda x: f"{x:,}")
 
+                # Workbook 생성 및 데이터 주입
+                from openpyxl import Workbook
+                from openpyxl.utils.dataframe import dataframe_to_rows
+                from infra.adapters.excel.excel_formatter import ExcelFormatter
+                
+                wb = Workbook()
+                ws = wb.active
+                ws.title = "Sheet1"
+                
+                # 데이터프레임 행 추가 (헤더 포함)
+                for r in dataframe_to_rows(df_to_save, index=False, header=True):
+                    ws.append(r)
+                
+                # 컬럼 자동 너비 조정
+                ExcelFormatter.apply_autofit(ws)
+                
                 # 모든 StoragePort를 통해 저장
                 for storage in self.storages:
-                    success = storage.save_dataframe_excel(df_to_save, path=filename, index=False)
+                    # save_workbook 사용
+                    success = storage.save_workbook(wb, path=filename)
                     if success:
                         storage_name = storage.__class__.__name__
                         print(f"  [Adapter:DailyExcel] ✅ {storage_name} 저장 완료: {filename}")

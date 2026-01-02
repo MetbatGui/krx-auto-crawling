@@ -35,18 +35,30 @@ class RankingExcelAdapter(RankingReportPort):
     COLUMNS_TO_AUTOFIT = ['D', 'F', 'I', 'K']
     KOREAN_WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
     
-    def __init__(self, source_storage: StoragePort, target_storages: List[StoragePort], file_name: str = "2025일별수급순위정리표.xlsx"):
+    # 기본 템플릿 경로 상수
+    DEFAULT_TEMPLATE_PATH = "output/template/template_일별수급순위정리표.xlsx"
+    
+    def __init__(
+        self, 
+        source_storage: StoragePort, 
+        target_storages: List[StoragePort], 
+        file_name: str = "2025일별수급순위정리표.xlsx",
+        template_file_path: str = None
+    ):
         """RankingExcelAdapter 초기화.
 
         Args:
             source_storage (StoragePort): 파일을 로드할 저장소 (예: GoogleDriveAdapter).
             target_storages (List[StoragePort]): 파일을 저장할 저장소 리스트 (예: [LocalStorageAdapter, GoogleDriveAdapter]).
             file_name (str): Excel 파일명.
+            template_file_path (str): 템플릿 파일 경로 (Optional).
         """
         self.source_storage = source_storage
         self.target_storages = target_storages
         self.file_path = file_name
-        print(f"[Adapter:RankingExcel] 초기화 완료 (파일: {self.file_path})")
+        self.template_file_path = template_file_path or self.DEFAULT_TEMPLATE_PATH
+        
+        print(f"[Adapter:RankingExcel] 초기화 완료 (파일: {self.file_path}, 템플릿: {self.template_file_path})")
     
     def update_report(
         self,
@@ -77,27 +89,60 @@ class RankingExcelAdapter(RankingReportPort):
         return self._save_workbook(book)
     
     def _load_workbook(self) -> Workbook | None:
-        """워크북을 로드합니다 (Source Storage 사용)."""
+        """워크북을 로드합니다. 파일이 없으면 템플릿을 복사하여 시작합니다."""
         print(f"    -> [Adapter:RankingExcel] 로드 시도 ({self.source_storage.__class__.__name__})...")
+        
+        # 파일이 존재하는지 확인
+        if not self.source_storage.path_exists(self.file_path):
+            print(f"    -> [Adapter:RankingExcel] 파일이 없어 템플릿 복사를 시도합니다: {self.template_file_path}")
+            
+            # 템플릿 파일 로드 (바이트)
+            template_data = self.source_storage.get_file(self.template_file_path)
+            if template_data:
+                # 타겟 경로에 템플릿 저장 (Source Storage에 우선 저장)
+                # 주의: 로드는 source_storage에서 하므로, source_storage에 파일이 있어야 함.
+                # 보통 source_storage는 로컬이거나 공유 드라이브일 것임.
+                if self.source_storage.put_file(self.file_path, template_data):
+                    print(f"    -> [Adapter:RankingExcel] 템플릿 복사 성공")
+                else:
+                    print(f"    -> [Adapter:RankingExcel] 🚨 템플릿 저장 실패")
+                    return None
+            else:
+                print(f"    -> [Adapter:RankingExcel] 🚨 템플릿 파일을 찾을 수 없습니다: {self.template_file_path}")
+                # 템플릿이 없으면 새 파일 생성 로직으로 갈 수도 있지만, 여기서는 실패 처리
+                return None
+
+        # 파일 로드
         book = self.source_storage.load_workbook(self.file_path)
-        if not book or not book.worksheets:
-            print(f"    -> [Adapter:RankingExcel] 🚨 파일을 찾을 수 없습니다: {self.file_path}")
+        if not book:
+            print(f"    -> [Adapter:RankingExcel] 🚨 워크북 로드 실패: {self.file_path}")
             return None
+            
         return book
     
     def _create_new_sheet(self, book: Workbook, report_date: datetime.date) -> Worksheet | None:
-        """새로운 시트를 생성합니다."""
+        """새로운 시트를 생성합니다 (템플릿 시트 복제)."""
         try:
             sheet_name = report_date.strftime('%m%d')
             
+            # 이미 시트가 있으면 삭제
             if sheet_name in book.sheetnames:
                 del book[sheet_name]
             
-            source_sheet = book.worksheets[-1]
+            # 복제 소스 시트 결정 ('template' 시트 우선)
+            if 'template' in book.sheetnames:
+                source_sheet = book['template']
+                print(f"    -> [Adapter:RankingExcel] 'template' 시트 복제 사용")
+            else:
+                source_sheet = book.worksheets[-1]
+                print(f"    -> [Adapter:RankingExcel] 'template' 시트가 없어 마지막 시트 복제 사용")
+            
             new_sheet = book.copy_worksheet(source_sheet)
             new_sheet.title = sheet_name
             
-            print(f"    -> [Adapter:RankingExcel] '{sheet_name}' 시트 생성")
+            
+            
+            print(f"    -> [Adapter:RankingExcel] '{sheet_name}' 시트 생성 완료")
             return new_sheet
         except Exception as e:
             print(f"    -> [Adapter:RankingExcel] 🚨 시트 생성 실패: {e}")

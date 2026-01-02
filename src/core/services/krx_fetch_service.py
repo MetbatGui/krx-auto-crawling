@@ -112,12 +112,12 @@ class KrxFetchService:
             print(f"  [Service:KrxFetch] 🚨 필수 컬럼({required_cols})이 DF에 없습니다.")
             return pd.DataFrame()
 
-        # 4. 정렬 및 상위 20개 추출
+        # 4. 정렬 및 상위 30개 추출
         df_sorted = df.sort_values(by=sort_col, ascending=False)
-        df_top20 = df_sorted.head(20).copy() 
+        df_top30 = df_sorted.head(30).copy() 
         
         # 5. 최종 컬럼 선택 및 이름 변경
-        return df_top20[required_cols].rename(columns={sort_col: '순매수_거래대금'})
+        return df_top30[required_cols].rename(columns={sort_col: '순매수_거래대금'})
 
     def _parse_bytes_to_df(self, excel_bytes: bytes) -> pd.DataFrame:
         """바이트 데이터를 DataFrame으로 파싱합니다.

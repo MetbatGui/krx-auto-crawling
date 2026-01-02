@@ -128,7 +128,7 @@ def crawl(
     )
     
     # Ranking 서비스 조립 (헥사고날 아키텍처)
-    ranking_data_service = RankingDataService(top_n=20)
+    ranking_data_service = RankingDataService(top_n=30)
     ranking_report_adapter = RankingExcelAdapter(
         source_storage=source_storage, 
         target_storages=save_storages,

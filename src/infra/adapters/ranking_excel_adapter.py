@@ -24,19 +24,20 @@ class RankingExcelAdapter(RankingReportPort):
         file_path (str): Excel 파일 경로.
     """
     
-    TOP_N = 20
+    TOP_N = 30
     LAYOUT_MAP = {
-        'KOSPI_foreigner': {'stock_col': 'D', 'value_col': 'E', 'start_row': 5, 'market': 'KOSPI'},
-        'KOSPI_institutions': {'stock_col': 'F', 'value_col': 'G', 'start_row': 5, 'market': 'KOSPI'},
-        'KOSDAQ_foreigner': {'stock_col': 'I', 'value_col': 'J', 'start_row': 5, 'market': 'KOSDAQ'},
-        'KOSDAQ_institutions': {'stock_col': 'K', 'value_col': 'L', 'start_row': 5, 'market': 'KOSDAQ'},
+        'KOSPI_foreigner': {'stock_col': 'E', 'value_col': 'F', 'start_row': 5, 'market': 'KOSPI'},
+        'KOSPI_institutions': {'stock_col': 'H', 'value_col': 'I', 'start_row': 5, 'market': 'KOSPI'},
+        'KOSDAQ_foreigner': {'stock_col': 'L', 'value_col': 'M', 'start_row': 5, 'market': 'KOSDAQ'},
+        'KOSDAQ_institutions': {'stock_col': 'O', 'value_col': 'P', 'start_row': 5, 'market': 'KOSDAQ'},
     }
-    DATA_RANGE_TO_CLEAR = "D5:L24"
-    COLUMNS_TO_AUTOFIT = ['D', 'F', 'I', 'K']
+    # Top 30 기준 Clear Range: 5행부터 34행까지 (30개)
+    DATA_RANGE_TO_CLEAR = "E5:P34"
+    COLUMNS_TO_AUTOFIT = ['E', 'H', 'L', 'O']
     KOREAN_WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
     
-    # 기본 템플릿 경로 상수
-    DEFAULT_TEMPLATE_PATH = "output/template/template_일별수급순위정리표.xlsx"
+    # 기본 템플릿 경로 상수 (StorageRoot 기준)
+    DEFAULT_TEMPLATE_PATH = "template/template_일별수급순위정리표.xlsx"
     
     def __init__(
         self, 

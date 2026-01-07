@@ -25,20 +25,16 @@ from infra.adapters.pykrx_price_adapter import PykrxPriceAdapter
 
 def crawl(
     date: str = typer.Argument(None, help="대상 날짜 (YYYYMMDD 형식, 기본값: 오늘)"),
-    drive: bool = typer.Option(False, "--drive", "-d", help="Google Drive에도 저장할지 여부"),
-    raw: bool = typer.Option(False, "--raw", "-r", help="로컬 Raw 파일 우선 사용 및 덮어쓰기 모드")
+    drive: bool = typer.Option(False, "--drive", "-d", help="Google Drive에도 저장할지 여부")
 ):
     """일일 크롤링 루틴을 실행합니다.
 
     KRX 데이터를 수집하고, 일별 리포트, 마스터 리포트, 순위 리포트 등을 생성하여 저장합니다.
     기본적으로 로컬에 저장하며, `--drive` 옵션 사용 시 Google Drive에도 저장합니다.
-    `--raw` 옵션 사용 시, 로컬의 'output/raw/' 폴더에 있는 원본 엑셀 파일을 우선적으로 사용하고,
-    정제된 데이터로 해당 파일을 덮어씌웁니다.
 
     Args:
         date (str): 대상 날짜 (YYYYMMDD). 기본값은 오늘 날짜.
         drive (bool): Google Drive 저장 여부.
-        raw (bool): Raw 파일 사용 및 덮어쓰기 여부.
     """
     # 1. 환경 변수 로드
     load_dotenv()
@@ -103,8 +99,7 @@ def crawl(
         # Local Mode (Default)
         typer.echo(f"--- [CLI] Storage Mode: Local Only ---")
     
-    if raw:
-        typer.echo(f"--- [CLI] Raw File Overwrite Mode: ON ---")
+
 
     # 5. 어댑터(Adapters) 인스턴스 생성 및 의존성 주입
     # (Infra Layer)
@@ -125,11 +120,8 @@ def crawl(
 
     # 6. 서비스(Services) 인스턴스 생성 및 의존성 주입
     # (Core Layer)
-    # raw 옵션이 켜져있으면 로컬 스토리지와 사용 여부를 전달
     fetch_service = KrxFetchService(
-        krx_port=krx_adapter, 
-        storage_port=local_storage, 
-        use_raw=raw
+        krx_port=krx_adapter
     )
     master_data_service = MasterDataService()
     master_service = MasterReportService(
@@ -161,7 +153,10 @@ def crawl(
 
     # 7. 메인 루틴 실행
     try:
-        routine_service.execute(date_str=target_date, force_fetch=raw)
+        routine_service.execute(date_str=target_date, force_fetch=False)
     except Exception as e:
         typer.echo(f"\n[CLI] [Critical] Critical Error during execution: {e}", err=True)
         raise typer.Exit(code=1)
+
+if __name__ == "__main__":
+    typer.run(crawl)

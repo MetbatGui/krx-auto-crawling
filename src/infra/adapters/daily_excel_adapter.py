@@ -60,6 +60,11 @@ class DailyExcelAdapter(DailyReportPort):
 
                 # 저장용 복사본 생성 및 포맷팅
                 df_to_save = item.data.copy()
+                
+                # 종목코드 컬럼 제거 (저장 파일에는 미포함)
+                if '종목코드' in df_to_save.columns:
+                    df_to_save = df_to_save.drop(columns=['종목코드'])
+                    
                 if '거래대금_순매수' in df_to_save.columns:
                      # 쉼표 포맷팅을 위해 문자열로 변환
                     df_to_save['거래대금_순매수'] = df_to_save['거래대금_순매수'].apply(lambda x: f"{x:,}")

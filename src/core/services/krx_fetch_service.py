@@ -17,17 +17,13 @@ class KrxFetchService:
         use_raw (bool): 로컬 Raw 파일 사용 여부.
     """
 
-    def __init__(self, krx_port: KrxDataPort, storage_port: Optional[StoragePort] = None, use_raw: bool = False):
+    def __init__(self, krx_port: KrxDataPort):
         """KrxFetchService 초기화.
 
         Args:
             krx_port (KrxDataPort): KRX 데이터 포트 인터페이스.
-            storage_port (Optional[StoragePort]): Raw 파일 처리를 위한 저장소 포트.
-            use_raw (bool): True일 경우 로컬 Raw 파일 우선 사용 및 덮어쓰기.
         """
         self.krx_port = krx_port
-        self.storage_port = storage_port
-        self.use_raw = use_raw
 
     def fetch_all_data(self, date_str: Optional[str] = None) -> List[KrxData]:
         """모든 타겟(시장/투자자)에 대해 데이터를 수집하고 가공합니다.
@@ -57,34 +53,11 @@ class KrxFetchService:
                 market_kr = "코스피" if market == Market.KOSPI else "코스닥"
                 investor_kr = "외국인" if investor == Investor.FOREIGNER else "기관"
                 
-                # Raw 파일 경로: output/raw/{date}{market}{investor}순매수.xlsx
-                # (Adapter가 output/ 을 prefix로 붙이므로 여기서는 raw/ 로 시작)
-                raw_file_key = f"raw/{date_str}{market_kr}{investor_kr}순매수.xlsx"
-                
-                raw_bytes = None
-                
-                # 0. 로컬 Raw 파일 확인 (use_raw 옵션 활성화 시)
-                if self.use_raw and self.storage_port:
-                    if self.storage_port.path_exists(raw_file_key):
-                        print(f"  [Service:KrxFetch] [File] 로컬 Raw 파일 발견: {raw_file_key}")
-                        raw_bytes = self.storage_port.get_file(raw_file_key)
-                    else:
-                        print(f"  [Service:KrxFetch] 로컬 Raw 파일 없음 ({raw_file_key}). 웹 수집 진행.")
+                # 1. 데이터 수집
+                raw_bytes = self.krx_port.fetch_net_value_data(market, investor, date_str)
 
-                # 1. 원본 데이터 수집 (로컬에 없거나 use_raw=False인 경우)
-                if raw_bytes is None:
-                    raw_bytes = self.krx_port.fetch_net_value_data(market, investor, date_str)
-                    
-                    # 1.5. Raw 파일 저장 (Cache)
-                    # 수집한 원본 데이터(Byte)를 그대로 저장하여 캐싱
-                    if self.use_raw and self.storage_port and raw_bytes:
-                        print(f"  [Service:KrxFetch] [Save] 원본 Raw 파일 저장: {raw_file_key}")
-                        self.storage_port.put_file(raw_file_key, raw_bytes)
-                
                 # 2. 데이터 가공
                 df = self._parse_and_filter_data(raw_bytes)
-                
-                # (기존의 정제 데이터 Overwrite 로직 제거됨)
                 
                 if df.empty:
                     print(f"  -> [Warn] {market.value} {investor.value} 데이터가 비어있습니다 (휴장일 등).")
@@ -146,8 +119,8 @@ class KrxFetchService:
             # 콤마 제거 및 float 변환
             df[sort_col] = df[sort_col].astype(str).str.replace(',', '').astype(float)
             
-            # 백만 단위 변환 (반올림 후 정수형)
-            df[sort_col] = (df[sort_col] / 1_000_000).round(0).astype(int)
+            # 정수형 변환
+            df[sort_col] = df[sort_col].astype(int)
         except Exception as e:
             print(f"  [Service:KrxFetch] [Warn] 숫자 변환 중 오류 ({sort_col}): {e}")
 

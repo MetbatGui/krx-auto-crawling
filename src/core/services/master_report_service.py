@@ -238,15 +238,20 @@ class MasterReportService:
             )
             
             if not df.empty and all(col in df.columns for col in self.data_service.excel_columns):
-                # 데이터 전처리: 빈 행 제거 및 타입 변환
+                # 데이터 전처리: 빈 행 제거
                 df = df.dropna(subset=['일자'])
                 
-                # '일자' 컬럼이 datetime인지 확인하고, 아니면 변환 시도
-                if not pd.api.types.is_datetime64_any_dtype(df['일자']):
-                     df['일자'] = pd.to_datetime(df['일자'], errors='coerce')
+                # 날짜 컬럼을 문자열로 변환 및 정제 (float .0 제거 등)
+                df['일자'] = df['일자'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
                 
-                df = df.dropna(subset=['일자']) # 변환 실패(NaN) 제거
+                # 날짜 형식 검증 (YYYYMMDD) 및 표준화
+                # 포맷을 명시하여 숫자(예: 20260105)가 Epoch 시간으로 오인되는 것을 방지
+                temp_dates = pd.to_datetime(df['일자'], format='%Y%m%d', errors='coerce')
+                df = df[temp_dates.notna()] # 유효하지 않은 날짜 제거
                 
+                # MasterDataService 표준인 'YYYYMMDD' 문자열로 통일
+                df['일자'] = temp_dates.dt.strftime('%Y%m%d')
+
                 result = df[self.data_service.excel_columns].copy()
                 print(f"    -> [Service:MasterReport] 기존 '{sheet_name}' 시트 데이터 ({len(result)}줄) 로드 완료")
                 return result

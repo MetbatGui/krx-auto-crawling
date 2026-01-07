@@ -46,14 +46,40 @@ class KrxHttpAdapter(KrxDataPort):
             context = browser.new_context(
                 user_agent=self.user_agent
             )
+            
+            # Alert 발생 여부 추적
+            alert_triggered = False
+
+            # Alert(Dialog) 핸들러
+            def handle_dialog(dialog):
+                nonlocal alert_triggered
+                msg = dialog.message
+                print(f"  [KrxHttp] 🚨 Alert 감지: {msg}")
+                alert_triggered = True
+                
+                try:
+                    if "보안프로그램" in msg:
+                        # 보안 프로그램 설치 유도는 취소해야 함 (확인 시 설치 페이지 이동)
+                        dialog.dismiss()
+                        print("  [KrxHttp] 보안 프로그램 알림 -> '취소' 처리.")
+                    else:
+                        # 그 외(중복 로그인 등)는 확인을 눌러서 진행
+                        dialog.accept()
+                        print("  [KrxHttp] 로그인/기타 알림 -> '확인' 처리.")
+                        
+                except Exception as e:
+                    print(f"  [KrxHttp] Alert 처리 중 오류: {e}")
+
+            context.on("dialog", handle_dialog)
+            
             page = context.new_page()
             
             try:
-                # 0. Root 페이지 접속 (쿠키 초기화 및 보안/세션 쿠키 획득용)
+                # 0. Root 페이지 접속
                 print("  [KrxHttp] Root 페이지 접속...")
                 page.goto("https://data.krx.co.kr/", wait_until='networkidle', timeout=30000)
 
-                # 1. 로그인 (안정적인 세션을 위해 수행)
+                # 1. 로그인
                 login_url = "https://data.krx.co.kr/contents/MDC/COMS/client/MDCCOMS001.cmd?locale=ko_KR"
                 page.goto(login_url, wait_until='networkidle', timeout=30000)
                 
@@ -63,18 +89,56 @@ class KrxHttpAdapter(KrxDataPort):
                         print("  [KrxHttp] 로그인 정보 입력...")
                         frame.locator("#mbrId").fill(self.username)
                         frame.locator("input[title='비밀번호']").fill(self.password)
-                        frame.locator(".jsLoginBtn").click()
-                        print("  [KrxHttp] 로그인 버튼 클릭. 메인 페이지 이동 대기...")
                         
-                        # 명시적으로 URL 변경 대기 (최대 30초)
-                        try:
-                            # index.cmd로 이동하거나, 혹은 로그인이 이미 되어서 메인으로 갔을 수도 있음
-                            page.wait_for_url("**/index.cmd", timeout=30000)
-                            print(f"  [KrxHttp] 로그인 성공! URL: {page.url}")
-                        except Exception as e:
-                            print(f"  [KrxHttp] 로그인 이동 대기 시간 초과/실패: {e}")
-                            print(f"  [KrxHttp] 현재 URL: {page.url}")
-                            # 실패해도 일단 진행해볼 수 있으나, 보통 실패함.
+                        # 반복 클릭 시도 (최대 5회)
+                        max_click_attempts = 5
+                        for attempt in range(max_click_attempts):
+                            if "index.cmd" in page.url:
+                                print(f"  [KrxHttp] 이미 로그인 완료 상태입니다. (URL: {page.url})")
+                                break
+                                
+                            print(f"  [KrxHttp] 로그인 버튼 클릭 시도 ({attempt+1}/{max_click_attempts})...")
+                            frame.locator(".jsLoginBtn").click(force=True)
+                            
+                            # Alert 처리 및 로딩 대기
+                            page.wait_for_timeout(2000)
+                            
+                            # 1. 브라우저 Dialog (Alert)는 context.on("dialog")에서 처리됨
+                            
+                            # 2. HTML 모달(레이어 팝업) 처리
+                            # 사용자가 제공한 클래스: btn-confirm (<button class="btn-confirm ...">확인</button>)
+                            try:
+                                modal_confirm_btn = frame.locator(".btn-confirm")
+                                if modal_confirm_btn.is_visible():
+                                    print("  [KrxHttp] HTML 모달 '확인' 버튼(.btn-confirm) 감지. 클릭합니다...")
+                                    modal_confirm_btn.click()
+                                    page.wait_for_timeout(1000)
+                                else:
+                                    # 백업: 텍스트로 찾기 (Role 기반)
+                                    confirm_btn = frame.get_by_role("button", name="확인")
+                                    if confirm_btn.is_visible():
+                                         print("  [KrxHttp] HTML 모달 '확인' 버튼(Role) 감지. 클릭합니다...")
+                                         confirm_btn.click()
+                                         page.wait_for_timeout(1000)
+                            except Exception:
+                                pass
+                            
+                            # URL 변경 확인으로 성공 판단
+                            if "index.cmd" in page.url:
+                                print(f"  [KrxHttp] 로그인 성공! (URL: {page.url})")
+                                break
+                            
+                            # 마지막 시도가 아니면 잠시 대기 후 재시도
+                            if attempt < max_click_attempts - 1:
+                                print("  [KrxHttp] 로그인 미완료. 버튼 재클릭 준비...")
+                        
+                        # 최종 확인
+                        if "index.cmd" not in page.url:
+                             print("  [KrxHttp] 반복 시도에도 URL 변경 안됨. (경고)")
+                             # 여기서 에러를 내진 않고 진행해봄 (쿠키가 생겼을 수도 있음)
+
+                except Exception as e:
+                    print(f"  [KrxHttp] 로그인 시도 중 예외 (이미 로그인됨?): {e}")
                             
                 except Exception as e:
                     print(f"  [KrxHttp] 로그인 시도 중 예외 (이미 로그인됨?): {e}")
@@ -90,7 +154,7 @@ class KrxHttpAdapter(KrxDataPort):
                 
                 user_agent = page.evaluate("navigator.userAgent")
                 
-                print(f"  [KrxHttp] 세션 쿠키 획득 완료 ({len(cookie_dict)}개): {list(cookie_dict.keys())}")
+                print(f"  [KrxHttp] 세션 쿠키 획득 완료 ({len(cookie_dict)}개)")
                 return cookie_dict, user_agent
                 
             except Exception as e:

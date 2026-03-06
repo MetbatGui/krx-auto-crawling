@@ -21,7 +21,7 @@ from infra.adapters.ranking_excel_adapter import RankingExcelAdapter
 from infra.adapters.excel.master_workbook_adapter import MasterWorkbookAdapter
 from infra.adapters.excel.master_sheet_adapter import MasterSheetAdapter
 from infra.adapters.excel.master_pivot_sheet_adapter import MasterPivotSheetAdapter
-from infra.adapters.pykrx_price_adapter import PykrxPriceAdapter
+from infra.adapters.native_krx_price_adapter import NativeKrxPriceAdapter
 
 def crawl(
     date: str = typer.Argument(None, help="대상 날짜 (YYYYMMDD 형식, 기본값: 오늘)"),
@@ -104,7 +104,7 @@ def crawl(
     # 5. 어댑터(Adapters) 인스턴스 생성 및 의존성 주입
     # (Infra Layer)
     krx_adapter = KrxHttpAdapter()
-    price_adapter = PykrxPriceAdapter()
+    price_adapter = NativeKrxPriceAdapter()
     daily_adapter = DailyExcelAdapter(storages=save_storages, source_storage=source_storage)
     watchlist_adapter = WatchlistFileAdapter(storages=save_storages)
     

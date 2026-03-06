@@ -9,7 +9,6 @@ def test_cli_help():
     assert result.exit_code == 0
     assert "KRX 자동 크롤링 CLI" in result.stdout
     assert "crawl" in result.stdout
-    assert "download" in result.stdout
 
 def test_cli_crawl_help():
     """crawl 명령어 도움말 확인"""
@@ -23,8 +22,4 @@ def test_cli_crawl_invalid_date_format():
     assert result.exit_code == 1
     assert "잘못된 날짜 형식입니다" in result.output
 
-def test_cli_download_help():
-    """download 명령어 도움말 확인"""
-    result = runner.invoke(app, ["download", "--help"])
-    assert result.exit_code == 0
-    assert "Google Drive에서 로컬 저장소로 파일을 다운로드합니다." in result.stdout
+

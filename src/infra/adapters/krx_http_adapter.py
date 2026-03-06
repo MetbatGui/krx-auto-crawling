@@ -1,167 +1,90 @@
 # infra/adapters/krx_http_adapter.py
-import cloudscraper
+import requests
 import datetime
+import os
 from typing import Optional
-from playwright.sync_api import sync_playwright
 
 from core.ports.krx_data_port import KrxDataPort
 from core.domain.models import Market, Investor
 
 class KrxHttpAdapter(KrxDataPort):
-    """Cloudscraper를 사용한 KRX 데이터 어댑터
+    """requests.Session을 사용한 KRX 데이터 어댑터
     
-    Playwright를 사용하여 세션 쿠키를 획득하고,
-    이후 데이터 다운로드는 순수 HTTP 요청으로 처리하는 하이브리드 방식
+    직접 HTTP 요청을 통해 KRX 상한가 소스 및 가격 정보를 직접 스크래핑합니다.
     """
     
-
+    BASE_URL = "https://data.krx.co.kr"
 
     def __init__(self):
         """KrxHttpAdapter 초기화"""
         super().__init__()
-        self.scraper = cloudscraper.create_scraper()
+        self.session = requests.Session()
         self.otp_url = 'https://data.krx.co.kr/comm/fileDn/GenerateOTP/generate.cmd'
         self.download_url = 'https://data.krx.co.kr/comm/fileDn/download_excel/download.cmd'
-        # Playwright와 동일한 User-Agent 설정
-        self.user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        self.scraper.headers.update({'User-Agent': self.user_agent})
         
-        # 로그인 정보 (사용자 요청에 따라 하드코딩)
-        self.username = 'zeya9643'
-        self.password = 'chlwltjr43!'
+        # User-Agent 설정
+        self.user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+        self.session.headers.update({'User-Agent': self.user_agent})
         
-        # 세션 캐싱
-        self.cached_cookies: Optional[dict] = None
-        self.cached_user_agent: Optional[str] = None
+        # 로그인 정보 (환경변수 또는 하드코딩된 값 사용 가능)
+        self.username = os.getenv("KRX_USERNAME", "zeya9643")
+        self.password = os.getenv("KRX_PASSWORD", "chlwltjr43!")
+        
+        # 세션 초기화 여부
+        self.is_logged_in = False
 
-    def _get_session_cookies_via_playwright(self) -> tuple[dict, str]:
-        """Playwright를 사용하여 KRX 사이트에 접속하고 세션 쿠키와 User-Agent를 획득합니다.
+    def _login(self) -> None:
+        """KRX 정보데이터시스템 로그인 후 세션 쿠키(JSESSIONID)를 갱신합니다.
         
-        Returns:
-            tuple[dict, str]: (쿠키 딕셔너리, User-Agent 문자열)
+        로그인 흐름:
+          1. GET MDCCOMS001.cmd  → 초기 JSESSIONID 발급
+          2. GET login.jsp       → iframe 세션 초기화
+          3. POST MDCCOMS001D1.cmd → 실제 로그인
+          4. CD011(중복 로그인) → skipDup=Y 추가 후 재전송
         """
-        print("  [KrxHttp] Playwright로 세션 초기화 (쿠키 획득)...")
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(
-                user_agent=self.user_agent
-            )
+        _LOGIN_PAGE = f"{self.BASE_URL}/contents/MDC/COMS/client/MDCCOMS001.cmd"
+        _LOGIN_JSP  = f"{self.BASE_URL}/contents/MDC/COMS/client/view/login.jsp?site=mdc"
+        _LOGIN_URL  = f"{self.BASE_URL}/contents/MDC/COMS/client/MDCCOMS001D1.cmd"
+        
+        print("  [KrxHttp] 직접 요청으로 세션 초기화 (로그인)...")
+        try:
+            # 1 & 2. 초기 세션 발급
+            self.session.get(_LOGIN_PAGE, timeout=15)
+            self.session.get(_LOGIN_JSP, headers={"Referer": _LOGIN_PAGE}, timeout=15)
             
-            # Alert 발생 여부 추적
-            alert_triggered = False
-
-            # Alert(Dialog) 핸들러
-            def handle_dialog(dialog):
-                nonlocal alert_triggered
-                msg = dialog.message
-                print(f"  [KrxHttp] 🚨 Alert 감지: {msg}")
-                alert_triggered = True
-                
-                try:
-                    if "보안프로그램" in msg:
-                        # 보안 프로그램 설치 유도는 취소해야 함 (확인 시 설치 페이지 이동)
-                        dialog.dismiss()
-                        print("  [KrxHttp] 보안 프로그램 알림 -> '취소' 처리.")
-                    else:
-                        # 그 외(중복 로그인 등)는 확인을 눌러서 진행
-                        dialog.accept()
-                        print("  [KrxHttp] 로그인/기타 알림 -> '확인' 처리.")
-                        
-                except Exception as e:
-                    print(f"  [KrxHttp] Alert 처리 중 오류: {e}")
-
-            context.on("dialog", handle_dialog)
+            payload = {
+                "mbrNm": "", "telNo": "", "di": "", "certType": "",
+                "mbrId": self.username, "pw": self.password,
+            }
+            headers = {"Referer": _LOGIN_PAGE}
             
-            page = context.new_page()
+            # 3. 로그인 POST
+            resp = self.session.post(_LOGIN_URL, data=payload, headers=headers, timeout=15)
+            data = resp.json()
+            error_code = data.get("_error_code", "")
             
-            try:
-                # 0. Root 페이지 접속
-                print("  [KrxHttp] Root 페이지 접속...")
-                page.goto("https://data.krx.co.kr/", wait_until='networkidle', timeout=30000)
-
-                # 1. 로그인
-                login_url = "https://data.krx.co.kr/contents/MDC/COMS/client/MDCCOMS001.cmd?locale=ko_KR"
-                page.goto(login_url, wait_until='networkidle', timeout=30000)
+            # 4. CD011 중복 로그인 처리
+            if error_code == "CD011":
+                print("  [KrxHttp] 중복 로그인 감지. 재로그인 시도...")
+                payload["skipDup"] = "Y"
+                resp = self.session.post(_LOGIN_URL, data=payload, headers=headers, timeout=15)
+                data = resp.json()
+                error_code = data.get("_error_code", "")
                 
-                try:
-                    frame = page.frame_locator("#COMS001_FRAME")
-                    if frame.locator("#mbrId").is_visible():
-                        print("  [KrxHttp] 로그인 정보 입력...")
-                        frame.locator("#mbrId").fill(self.username)
-                        frame.locator("input[title='비밀번호']").fill(self.password)
-                        
-                        # 반복 클릭 시도 (최대 5회)
-                        max_click_attempts = 5
-                        for attempt in range(max_click_attempts):
-                            if "index.cmd" in page.url:
-                                print(f"  [KrxHttp] 이미 로그인 완료 상태입니다. (URL: {page.url})")
-                                break
-                                
-                            print(f"  [KrxHttp] 로그인 버튼 클릭 시도 ({attempt+1}/{max_click_attempts})...")
-                            frame.locator(".jsLoginBtn").click(force=True)
-                            
-                            # Alert 처리 및 로딩 대기
-                            page.wait_for_timeout(2000)
-                            
-                            # 1. 브라우저 Dialog (Alert)는 context.on("dialog")에서 처리됨
-                            
-                            # 2. HTML 모달(레이어 팝업) 처리
-                            # 사용자가 제공한 클래스: btn-confirm (<button class="btn-confirm ...">확인</button>)
-                            try:
-                                modal_confirm_btn = frame.locator(".btn-confirm")
-                                if modal_confirm_btn.is_visible():
-                                    print("  [KrxHttp] HTML 모달 '확인' 버튼(.btn-confirm) 감지. 클릭합니다...")
-                                    modal_confirm_btn.click()
-                                    page.wait_for_timeout(1000)
-                                else:
-                                    # 백업: 텍스트로 찾기 (Role 기반)
-                                    confirm_btn = frame.get_by_role("button", name="확인")
-                                    if confirm_btn.is_visible():
-                                         print("  [KrxHttp] HTML 모달 '확인' 버튼(Role) 감지. 클릭합니다...")
-                                         confirm_btn.click()
-                                         page.wait_for_timeout(1000)
-                            except Exception:
-                                pass
-                            
-                            # URL 변경 확인으로 성공 판단
-                            if "index.cmd" in page.url:
-                                print(f"  [KrxHttp] 로그인 성공! (URL: {page.url})")
-                                break
-                            
-                            # 마지막 시도가 아니면 잠시 대기 후 재시도
-                            if attempt < max_click_attempts - 1:
-                                print("  [KrxHttp] 로그인 미완료. 버튼 재클릭 준비...")
-                        
-                        # 최종 확인
-                        if "index.cmd" not in page.url:
-                             print("  [KrxHttp] 반복 시도에도 URL 변경 안됨. (경고)")
-                             # 여기서 에러를 내진 않고 진행해봄 (쿠키가 생겼을 수도 있음)
-
-                except Exception as e:
-                    print(f"  [KrxHttp] 로그인 시도 중 예외 (이미 로그인됨?): {e}")
-                            
-                except Exception as e:
-                    print(f"  [KrxHttp] 로그인 시도 중 예외 (이미 로그인됨?): {e}")
-
-                # 2. 통계 페이지 이동 (필수 쿠키 획득용)
-                stat_url = "https://data.krx.co.kr/contents/MDC/MDCCOM02005.jsp?viewName=MDCSTAT02401"
-                page.goto(stat_url, wait_until='networkidle', timeout=30000)
-                page.wait_for_timeout(3000)
+            if error_code == "CD001":
+                print(f"  [KrxHttp] 세션 획득 완료 (회원번호: {data.get('MBR_NO', '')})")
+                self.is_logged_in = True
+            else:
+                print(f"  [KrxHttp] 로그인 에러: {data}")
+                self.is_logged_in = False
                 
-                # 3. 쿠키 및 User-Agent 추출
-                cookies = context.cookies()
-                cookie_dict = {cookie['name']: cookie['value'] for cookie in cookies}
-                
-                user_agent = page.evaluate("navigator.userAgent")
-                
-                print(f"  [KrxHttp] 세션 쿠키 획득 완료 ({len(cookie_dict)}개)")
-                return cookie_dict, user_agent
-                
-            except Exception as e:
-                print(f"  [KrxHttp] Playwright 세션 획득 실패: {e}")
-                raise
-            finally:
-                browser.close()
+            # 기본 쿠키 세팅
+            self.session.cookies.set('mdc.client_session', 'true', domain='data.krx.co.kr')
+            self.session.cookies.set('lang', 'ko_KR', domain='data.krx.co.kr')
+            
+        except Exception as e:
+            print(f"  [KrxHttp] 로그인 요청 실패: {e}")
+            self.is_logged_in = False
 
     def fetch_net_value_data(
         self, 
@@ -169,10 +92,7 @@ class KrxHttpAdapter(KrxDataPort):
         investor: Investor, 
         date_str: Optional[str] = None
     ) -> bytes:
-        """Cloudscraper를 사용하여 데이터(Excel Bytes)를 가져옵니다.
-        
-        Playwright로 세션을 맺은 후, HTTP 요청으로 OTP 발급 및 다운로드를 수행합니다.
-        (세션 캐싱 및 재시도 로직 포함)
+        """직접 세션을 사용하여 데이터(Excel Bytes)를 가져옵니다.
         """
         if date_str is None:
             target_date = datetime.date.today().strftime('%Y%m%d')
@@ -184,16 +104,13 @@ class KrxHttpAdapter(KrxDataPort):
         max_retries = 1
         for attempt in range(max_retries + 1):
             try:
-                # 1. 세션 쿠키 확인 및 획득
-                if not self.cached_cookies:
-                    self.cached_cookies, self.cached_user_agent = self._get_session_cookies_via_playwright()
+                # 1. 세션 로그인 확인
+                if not self.is_logged_in:
+                    self._login()
                 
-                # 2. Cloudscraper 설정
-                self.scraper.cookies.clear() # 이전 쿠키 제거
-                self.scraper.cookies.update(self.cached_cookies)
-                self.scraper.headers.update({
-                    'User-Agent': self.cached_user_agent,
-                    'Referer': 'https://data.krx.co.kr/contents/MDC/MDCCOM02005.jsp?viewName=MDCSTAT02401',
+                # 2. 헤더 설정 (최신화)
+                self.session.headers.update({
+                    'Referer': 'https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201',
                     'Origin': 'https://data.krx.co.kr',
                     'Accept': 'application/json, text/javascript, */*; q=0.01',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -202,23 +119,21 @@ class KrxHttpAdapter(KrxDataPort):
                 
                 # 3. OTP 발급 요청
                 otp_params = self._create_otp_params(market, investor, target_date)
-                otp_response = self.scraper.post(self.otp_url, data=otp_params)
+                otp_response = self.session.post(self.otp_url, data=otp_params)
                 otp_code = otp_response.text.strip()
                 
                 if len(otp_code) < 10 or 'LOGOUT' in otp_code:
                      if attempt < max_retries:
                          print(f"  [KrxHttp] 세션 만료/LOGOUT 감지. 세션 재설정 후 재시도합니다...")
-                         self.cached_cookies = None # 캐시 초기화
+                         self.is_logged_in = False
                          continue # 재시도
                      else:
-                        if '<html' in otp_code:
-                             print(f"  [KrxHttp] OTP 응답이 HTML 입니다: {otp_code[:100]}...")
                         raise ConnectionError(f"OTP 발급 실패: {otp_code[:50]}...")
                 
                 print(f"  [KrxHttp] OTP 발급 성공")
 
                 # 4. 파일 다운로드 요청
-                download_response = self.scraper.post(
+                download_response = self.session.post(
                     self.download_url,
                     data={'code': otp_code}
                 )
@@ -234,14 +149,13 @@ class KrxHttpAdapter(KrxDataPort):
                 
             except Exception as e:
                 print(f"  [KrxHttp] 데이터 수집 중 오류: {e}")
-                if attempt < max_retries and self.cached_cookies is not None:
+                if attempt < max_retries:
                      print("  [KrxHttp] 예외 발생으로 인한 재시도...")
-                     self.cached_cookies = None
+                     self.is_logged_in = False
                      continue
                 raise
             
 
-    
     def _create_otp_params(self, market: Market, investor: Investor, target_date: str) -> dict:
         """KRX OTP 발급을 위한 요청 파라미터를 생성합니다.
         

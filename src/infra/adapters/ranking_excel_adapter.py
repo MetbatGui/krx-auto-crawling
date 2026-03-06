@@ -321,19 +321,28 @@ class RankingExcelAdapter(RankingReportPort):
         try:
             sheet_name = report_date.strftime('%m%d')
             
-            # 이미 시트가 있으면 삭제
-            if sheet_name in book.sheetnames:
-                del book[sheet_name]
-            
-            # 복제 소스 시트 결정 ('template' 시트 우선)
+            # 복제 소스 시트 결정 ('template' 시트 우선, 그다음 직전 영업일 시트)
             if 'template' in book.sheetnames:
                 source_sheet = book['template']
                 print(f"    -> [Adapter:RankingExcel] 'template' 시트 복제 사용")
             else:
-                source_sheet = book.worksheets[-1]
-                print(f"    -> [Adapter:RankingExcel] 'template' 시트가 없어 마지막 시트 복제 사용")
+                # 덮어쓰려는 시트를 제외하고 시트가 있는지 확인
+                other_sheets = [s for s in book.worksheets if s.title != sheet_name]
+                if other_sheets:
+                    source_sheet = other_sheets[-1]
+                    print(f"    -> [Adapter:RankingExcel] 'template' 시트가 없어 이전 시트({source_sheet.title}) 복제 사용")
+                else:
+                    # 유일한 시트를 덮어쓰려는데 소스도 없는 경우, 현재 시트를 소스로 둡니다.
+                    source_sheet = book[sheet_name]
+                    print(f"    -> [Adapter:RankingExcel] 유일한 시트({sheet_name})를 기반으로 포맷 초기화 진행")
             
             new_sheet = book.copy_worksheet(source_sheet)
+            new_sheet.title = sheet_name + "_temp"
+            
+            # 이미 시트가 있으면 안전하게 삭제 후 이름 변경
+            if sheet_name in book.sheetnames:
+                del book[sheet_name]
+                
             new_sheet.title = sheet_name
             
             

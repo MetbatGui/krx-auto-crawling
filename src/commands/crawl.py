@@ -13,15 +13,15 @@ from core.services.ranking_data_service import RankingDataService
 
 # Adapters
 from infra.adapters.storage import LocalStorageAdapter
+from infra.adapters.native_krx_adapter import NativeKrxAdapter
 from infra.adapters.storage.google_drive_adapter import GoogleDriveAdapter
-from infra.adapters.krx_http_adapter import KrxHttpAdapter
+from infra.adapters.storage.google_drive_adapter import GoogleDriveAdapter
 from infra.adapters.daily_excel_adapter import DailyExcelAdapter
 from infra.adapters.watchlist_file_adapter import WatchlistFileAdapter
 from infra.adapters.ranking_excel_adapter import RankingExcelAdapter
 from infra.adapters.excel.master_workbook_adapter import MasterWorkbookAdapter
 from infra.adapters.excel.master_sheet_adapter import MasterSheetAdapter
 from infra.adapters.excel.master_pivot_sheet_adapter import MasterPivotSheetAdapter
-from infra.adapters.native_krx_price_adapter import NativeKrxPriceAdapter
 
 def crawl(
     date: str = typer.Argument(None, help="대상 날짜 (YYYYMMDD 형식, 기본값: 오늘)"),
@@ -103,8 +103,8 @@ def crawl(
 
     # 5. 어댑터(Adapters) 인스턴스 생성 및 의존성 주입
     # (Infra Layer)
-    krx_adapter = KrxHttpAdapter()
-    price_adapter = NativeKrxPriceAdapter()
+    unified_krx_adapter = NativeKrxAdapter()
+    
     daily_adapter = DailyExcelAdapter(storages=save_storages, source_storage=source_storage)
     watchlist_adapter = WatchlistFileAdapter(storages=save_storages)
     
@@ -121,7 +121,7 @@ def crawl(
     # 6. 서비스(Services) 인스턴스 생성 및 의존성 주입
     # (Core Layer)
     fetch_service = KrxFetchService(
-        krx_port=krx_adapter
+        krx_port=unified_krx_adapter
     )
     master_data_service = MasterDataService()
     master_service = MasterReportService(
@@ -136,7 +136,7 @@ def crawl(
     ranking_report_adapter = RankingExcelAdapter(
         source_storage=source_storage, 
         target_storages=save_storages,
-        price_port=price_adapter
+        price_port=unified_krx_adapter
     )
     ranking_service = RankingAnalysisService(
         data_service=ranking_data_service,

@@ -25,7 +25,8 @@ from infra.adapters.excel.master_pivot_sheet_adapter import MasterPivotSheetAdap
 
 def crawl(
     date: str = typer.Argument(None, help="대상 날짜 (YYYYMMDD 형식, 기본값: 오늘)"),
-    drive: bool = typer.Option(False, "--drive", "-d", help="Google Drive에도 저장할지 여부")
+    drive: bool = typer.Option(False, "--drive", "-d", help="Google Drive에도 저장할지 여부"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="실제 저장을 수행하지 않는 모의 실행 여부")
 ):
     """일일 크롤링 루틴을 실행합니다.
 
@@ -35,6 +36,7 @@ def crawl(
     Args:
         date (str): 대상 날짜 (YYYYMMDD). 기본값은 오늘 날짜.
         drive (bool): Google Drive 저장 여부.
+        dry_run (bool): 모의 실행 여부.
     """
     # 1. 환경 변수 로드
     load_dotenv()
@@ -55,16 +57,13 @@ def crawl(
     CLIENT_SECRET_FILE = "secrets/client_secret.json"
     
     # 4. StoragePort 인스턴스 생성
-    # 모드에 따라 배타적으로 동작 (Local Only OR Drive Only) -> Hybrid Mode로 변경
-    # --drive 옵션 시:
-    #   Source: Google Drive (싱크를 맞추기 위해)
-    #   Target: [Local, Google Drive] (양쪽 다 저장)
-    
-    # 항상 로컬 저장소는 초기화
-    local_storage = LocalStorageAdapter(base_path=BASE_OUTPUT_PATH)
+    local_storage = LocalStorageAdapter(base_path=BASE_OUTPUT_PATH, dry_run=dry_run)
     
     save_storages = [local_storage]
     source_storage = local_storage
+
+    if dry_run:
+        typer.echo("--- [CLI] Running in Dry-run Mode (No files will be written) ---")
 
     if drive:
         # Google Drive Mode
@@ -75,7 +74,8 @@ def crawl(
                 drive_storage = GoogleDriveAdapter(
                     token_file=TOKEN_FILE,
                     root_folder_id=root_folder_id,
-                    client_secret_file=CLIENT_SECRET_FILE if os.path.exists(CLIENT_SECRET_FILE) else None
+                    client_secret_file=CLIENT_SECRET_FILE if os.path.exists(CLIENT_SECRET_FILE) else None,
+                    dry_run=dry_run
                 )
                 
                 typer.echo(f"--- [CLI] Storage Mode: Hybrid (Source: Drive, Target: Local+Drive) ---")
@@ -99,8 +99,6 @@ def crawl(
         # Local Mode (Default)
         typer.echo(f"--- [CLI] Storage Mode: Local Only ---")
     
-
-
     # 5. 어댑터(Adapters) 인스턴스 생성 및 의존성 주입
     # (Infra Layer)
     unified_krx_adapter = NativeKrxAdapter()

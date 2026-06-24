@@ -28,7 +28,8 @@ def backfill(
     start: str = typer.Option(..., "--start", "-s", help="시작 날짜 (YYYYMMDD)"),
     end: str = typer.Option(None, "--end", "-e", help="종료 날짜 (YYYYMMDD, 기본값: 오늘)"),
     drive: bool = typer.Option(False, "--drive", "-d", help="Google Drive 연동 여부"),
-    force: bool = typer.Option(False, "--force", "-f", help="기존 파일 존재 여부와 관계없이 강제 실행")
+    force: bool = typer.Option(False, "--force", "-f", help="기존 파일 존재 여부와 관계없이 강제 실행"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="실제 저장을 수행하지 않는 모의 백필 실행 여부")
 ):
     """누락된 날짜의 데이터를 자동으로 수집하고 리포트를 생성합니다.
     
@@ -49,10 +50,12 @@ def backfill(
     BASE_OUTPUT_PATH = "output"
     TOKEN_FILE = "secrets/token.json"
     CLIENT_SECRET_FILE = "secrets/client_secret.json"
-    
-    local_storage = LocalStorageAdapter(base_path=BASE_OUTPUT_PATH)
+    local_storage = LocalStorageAdapter(base_path=BASE_OUTPUT_PATH, dry_run=dry_run)
     save_storages = [local_storage]
     source_storage = local_storage
+
+    if dry_run:
+        print("[CLI:Backfill] Running in Dry-run Mode (No files will be written)")
 
     if drive:
         root_folder_id = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID")
@@ -60,7 +63,8 @@ def backfill(
             drive_storage = GoogleDriveAdapter(
                 token_file=TOKEN_FILE,
                 root_folder_id=root_folder_id,
-                client_secret_file=CLIENT_SECRET_FILE if os.path.exists(CLIENT_SECRET_FILE) else None
+                client_secret_file=CLIENT_SECRET_FILE if os.path.exists(CLIENT_SECRET_FILE) else None,
+                dry_run=dry_run
             )
             save_storages.append(drive_storage)
             source_storage = drive_storage

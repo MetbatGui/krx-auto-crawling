@@ -33,7 +33,8 @@ class GoogleDriveAdapter(StoragePort):
         token_file: str, 
         root_folder_name: str = "KRX_Auto_Crawling_Data", 
         root_folder_id: Optional[str] = None,
-        client_secret_file: Optional[str] = None
+        client_secret_file: Optional[str] = None,
+        dry_run: bool = False
     ):
         """GoogleDriveAdapter 초기화.
 
@@ -42,6 +43,7 @@ class GoogleDriveAdapter(StoragePort):
             root_folder_name (str): 데이터를 저장할 최상위 폴더 이름 (root_folder_id가 없을 때 사용).
             root_folder_id (Optional[str]): 데이터를 저장할 최상위 폴더 ID (우선순위 높음).
             client_secret_file (Optional[str]): Refresh Token 갱신을 위한 Client Secret 파일 경로.
+            dry_run (bool): 실제 파일 업로드를 수행하지 않는 모의 실행 모드 여부.
         
         Raises:
             ValueError: token_file이 제공되지 않은 경우.
@@ -49,6 +51,7 @@ class GoogleDriveAdapter(StoragePort):
         """
         self.token_file = token_file
         self.client_secret_file = client_secret_file
+        self.dry_run = dry_run
         
         if not self.token_file:
             raise ValueError("token_file must be provided.")
@@ -60,10 +63,10 @@ class GoogleDriveAdapter(StoragePort):
         
         if root_folder_id:
             self.root_folder_id = root_folder_id
-            print(f"[GoogleDrive] 초기화 완료 (지정된 Root ID: {self.root_folder_id})")
+            print(f"[GoogleDrive] 초기화 완료 (지정된 Root ID: {self.root_folder_id}, Dry-run: {self.dry_run})")
         else:
             self.root_folder_id = self._get_or_create_folder(root_folder_name)
-            print(f"[GoogleDrive] 초기화 완료 (Root: {root_folder_name}, ID: {self.root_folder_id})")
+            print(f"[GoogleDrive] 초기화 완료 (Root: {root_folder_name}, ID: {self.root_folder_id}, Dry-run: {self.dry_run})")
 
     def _authenticate(self):
         """Google Drive API 인증 (OAuth 2.0 Token)."""
@@ -166,6 +169,9 @@ class GoogleDriveAdapter(StoragePort):
         Returns:
             bool: 성공 여부.
         """
+        if self.dry_run:
+            print(f"[GoogleDrive] [Dry-run] Would upload Excel to: {path}")
+            return True
         try:
             # 메모리에 Excel 파일 생성
             output = io.BytesIO()
@@ -191,6 +197,9 @@ class GoogleDriveAdapter(StoragePort):
         Returns:
             bool: 성공 여부.
         """
+        if self.dry_run:
+            print(f"[GoogleDrive] [Dry-run] Would upload CSV to: {path}")
+            return True
         try:
             # 메모리에 CSV 생성 (BytesIO 사용을 위해 인코딩 처리)
             # pandas to_csv는 file-like object에 str을 쓰므로 StringIO가 필요하지만,
@@ -222,6 +231,9 @@ class GoogleDriveAdapter(StoragePort):
         Returns:
             bool: 성공 여부.
         """
+        if self.dry_run:
+            print(f"[GoogleDrive] [Dry-run] Would upload Workbook to: {path}")
+            return True
         try:
             output = io.BytesIO()
             book.save(output)
@@ -394,6 +406,9 @@ class GoogleDriveAdapter(StoragePort):
         Returns:
             bool: 성공 여부.
         """
+        if self.dry_run:
+            print(f"[GoogleDrive] [Dry-run] Would upload file (bytes: {len(data)}) to: {path}")
+            return True
         try:
             # MIME 타입 추론 (간단하게)
             if path.endswith('.xlsx'):

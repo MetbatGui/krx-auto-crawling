@@ -21,15 +21,17 @@ class LocalStorageAdapter(StoragePort):
         base_path (Path): 기본 저장 경로.
     """
     
-    def __init__(self, base_path: str = "output"):
+    def __init__(self, base_path: str = "output", dry_run: bool = False):
         """LocalStorageAdapter 초기화.
 
         Args:
             base_path (str): 기본 저장 경로 (기본값: "output").
+            dry_run (bool): 실제 파일 저장을 수행하지 않는 모의 실행 모드 여부.
         """
         self.base_path = Path(base_path)
+        self.dry_run = dry_run
         self.ensure_directory("")  # 기본 경로 생성
-        print(f"[LocalStorage] 초기화 완료 (Base: {self.base_path.absolute()})")
+        print(f"[LocalStorage] 초기화 완료 (Base: {self.base_path.absolute()}, Dry-run: {self.dry_run})")
     
     def save_dataframe_excel(self, df: pd.DataFrame, path: str, **kwargs) -> bool:
         """DataFrame을 Excel 파일로 저장합니다.
@@ -42,6 +44,9 @@ class LocalStorageAdapter(StoragePort):
         Returns:
             bool: 성공 여부.
         """
+        if self.dry_run:
+            print(f"[LocalStorage] [Dry-run] Would save Excel to: {path}")
+            return True
         try:
             full_path = self.base_path / path
             self.ensure_directory(str(full_path.parent.relative_to(self.base_path)))
@@ -63,6 +68,9 @@ class LocalStorageAdapter(StoragePort):
         Returns:
             bool: 성공 여부.
         """
+        if self.dry_run:
+            print(f"[LocalStorage] [Dry-run] Would save CSV to: {path}")
+            return True
         try:
             full_path = self.base_path / path
             self.ensure_directory(str(full_path.parent.relative_to(self.base_path)))
@@ -83,6 +91,9 @@ class LocalStorageAdapter(StoragePort):
         Returns:
             bool: 성공 여부.
         """
+        if self.dry_run:
+            print(f"[LocalStorage] [Dry-run] Would save Workbook to: {path}")
+            return True
         try:
             full_path = self.base_path / path
             self.ensure_directory(str(full_path.parent.relative_to(self.base_path)))
@@ -187,7 +198,6 @@ class LocalStorageAdapter(StoragePort):
         except Exception as e:
             print(f"[LocalStorage] [Error] 파일 읽기 실패 ({path}): {e}")
             return None
-
     def put_file(self, path: str, data: bytes) -> bool:
         """바이트 데이터를 파일로 저장합니다.
         
@@ -198,6 +208,9 @@ class LocalStorageAdapter(StoragePort):
         Returns:
             bool: 저장 성공 여부.
         """
+        if self.dry_run:
+            print(f"[LocalStorage] [Dry-run] Would save file (bytes: {len(data)}) to: {path}")
+            return True
         try:
             full_path = self.base_path / path
             self.ensure_directory(str(full_path.parent.relative_to(self.base_path)))

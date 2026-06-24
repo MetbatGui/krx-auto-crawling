@@ -43,3 +43,7 @@ class FakeStorageAdapter(StoragePort):
     def put_file(self, path: str, data: bytes) -> bool:
         self.files[path] = data
         return True
+
+    def list_files(self, directory_path: str) -> list[str]:
+        # 테스트용 빈 리스트 반환
+        return []

@@ -33,6 +33,11 @@ clean:
 docker-healthcheck:
     {{docker_compose}} -f docker/docker-compose.yml run --rm netbuy healthcheck
 
+
+setup-release:
+    git checkout main
+    git remote add employers-netbuy https://github.com/guruta71/krx-netbuy-crawling.git
+
 # Release to employers-netbuy
 # Usage: just release
 release:

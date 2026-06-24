@@ -7,7 +7,6 @@ from core.services.master_data_service import MasterDataService
 from core.services.ranking_analysis_service import RankingAnalysisService
 from core.services.ranking_data_service import RankingDataService
 
-from infra.adapters.daily_excel_adapter import DailyExcelAdapter
 from infra.adapters.watchlist_file_adapter import WatchlistFileAdapter
 from infra.adapters.ranking_excel_adapter import RankingExcelAdapter
 from infra.adapters.excel.master_workbook_adapter import MasterWorkbookAdapter
@@ -59,7 +58,6 @@ def daily_routine_service(fake_storage, fake_krx):
     save_storages = [fake_storage]
     source_storage = fake_storage
     
-    daily_adapter = DailyExcelAdapter(storages=save_storages)
     watchlist_adapter = WatchlistFileAdapter(storages=save_storages)
     
     master_sheet_adapter = MasterSheetAdapter()
@@ -94,7 +92,6 @@ def daily_routine_service(fake_storage, fake_krx):
     
     return DailyRoutineService(
         fetch_service=fetch_service,
-        daily_port=daily_adapter,
         master_port=master_service,
         ranking_port=ranking_service,
         watchlist_port=watchlist_adapter
@@ -110,17 +107,8 @@ def test_daily_routine_execution_flow(daily_routine_service, fake_storage):
     daily_routine_service.execute(date_str=target_date)
     
     # Then
-    # 1. 일별 리포트 생성 확인
-    # (KOSPI/KOSDAQ * Foreigner/Institution = 4 files)
-    # 파일명은 Adapter 로직에 따라 다름.
-    # FakeKrx가 모든 요청에 대해 데이터를 리턴하므로 4개 다 생성되어야 함.
-    
     # 저장된 파일 경로들 확인
     saved_files = list(fake_storage.dataframes.keys()) + list(fake_storage.workbooks.keys()) + list(fake_storage.files.keys())
-    
-    # 일별 리포트 (Excel) - 현재 서비스 내부적으로 저장이 스킵되므로 0개여야 함
-    daily_reports = [f for f in saved_files if "순매수.xlsx" in f and "20250101" in f]
-    assert len(daily_reports) == 0
     
     # 2. 관심종목 파일 생성 확인 (CSV)
     watchlist_files = [f for f in saved_files if "관심종목" in f and "20250101" in f]

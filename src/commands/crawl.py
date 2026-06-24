@@ -17,7 +17,6 @@ from infra.adapters.storage import LocalStorageAdapter
 from infra.adapters.native_krx_adapter import NativeKrxAdapter
 from infra.adapters.naver_price_adapter import NaverPriceDataAdapter
 from infra.adapters.storage.google_drive_adapter import GoogleDriveAdapter
-from infra.adapters.daily_excel_adapter import DailyExcelAdapter
 from infra.adapters.watchlist_file_adapter import WatchlistFileAdapter
 from infra.adapters.ranking_excel_adapter import RankingExcelAdapter
 from infra.adapters.excel.master_workbook_adapter import MasterWorkbookAdapter
@@ -105,7 +104,6 @@ def crawl(
     # (Infra Layer)
     unified_krx_adapter = NativeKrxAdapter()
     
-    daily_adapter = DailyExcelAdapter(storages=save_storages, source_storage=source_storage)
     watchlist_adapter = WatchlistFileAdapter(storages=save_storages)
     
     # Master 관련 어댑터들
@@ -146,7 +144,6 @@ def crawl(
     
     routine_service = DailyRoutineService(
         fetch_service=fetch_service,
-        daily_port=daily_adapter,
         master_port=master_service,
         ranking_port=ranking_service,
         watchlist_port=watchlist_adapter

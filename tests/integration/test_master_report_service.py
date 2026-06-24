@@ -30,12 +30,10 @@ def master_service(fake_storage):
         source_storage=fake_storage,
         target_storages=[fake_storage],
         data_service=data_service,
-        workbook_adapter=workbook_adapter,
-        file_name_prefix="2025"
+        workbook_adapter=workbook_adapter
     )
 
-@pytest.mark.asyncio
-async def test_master_report_update_creates_new_file_if_not_exists(master_service, fake_storage):
+def test_master_report_update_creates_new_file_if_not_exists(master_service, fake_storage):
     """파일이 없을 때 새로 생성하는지 검증"""
     # Given
     df = pd.DataFrame({'종목코드': ['005930'], '종목명': ['삼성전자'], '순매수_거래대금': [1000]})
@@ -53,8 +51,7 @@ async def test_master_report_update_creates_new_file_if_not_exists(master_servic
     assert "JAN" in wb.sheetnames
     assert "0101" in wb.sheetnames # 피벗 시트
 
-@pytest.mark.asyncio
-async def test_master_report_update_appends_to_existing_file(master_service, fake_storage):
+def test_master_report_update_appends_to_existing_file(master_service, fake_storage):
     """이미 파일이 있을 때 데이터를 추가하는지 검증"""
     # Given
     # 1. 먼저 파일 생성 (1월 1일 데이터)
@@ -81,8 +78,7 @@ async def test_master_report_update_appends_to_existing_file(master_service, fak
     ws = wb["JAN"]
     assert ws.max_row >= 3 
 
-@pytest.mark.asyncio
-async def test_master_report_skips_empty_data(master_service, fake_storage):
+def test_master_report_skips_empty_data(master_service, fake_storage):
     """빈 데이터는 처리를 건너뛰는지 검증"""
     # Given
     empty_df = pd.DataFrame()

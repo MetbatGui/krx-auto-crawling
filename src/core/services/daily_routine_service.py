@@ -4,6 +4,8 @@ from core.services.master_report_service import MasterReportService
 from core.services.ranking_analysis_service import RankingAnalysisService
 from core.ports.daily_report_port import DailyReportPort
 from core.ports.watchlist_port import WatchlistPort
+from core.logger import logger
+
 
 class DailyRoutineService:
     """일일 크롤링 및 리포트 업데이트 루틴을 총괄하는 오케스트레이션 서비스.
@@ -58,7 +60,7 @@ class DailyRoutineService:
         if date_str is None:
             date_str = datetime.date.today().strftime('%Y%m%d')
 
-        print(f"\n=== [DailyRoutineService] 루틴 시작 (Date: {date_str}) ===")
+        logger.info(f"[DailyRoutineService] 루틴 시작 (Date: {date_str})")
 
         # Step 0: 데이터 확보 전략
         data_list = []
@@ -68,42 +70,41 @@ class DailyRoutineService:
         if not force_fetch:
             data_list = self.daily_port.load_daily_reports(date_str)
             if data_list:
-                print(f"=== [DailyRoutineService] [File] 기존 파일 발견 ({len(data_list)}건). KRX 수집을 건너뜁니다. ===")
+                logger.info(f"[DailyRoutineService] 기존 파일 발견 ({len(data_list)}건). KRX 수집 스킵.")
                 is_loaded_from_file = True
 
         # 2. 파일이 없거나 force_fetch 모드면 수집(또는 Raw 파일 로드) 진행
         if not data_list:
             if force_fetch:
-                print(f"=== [DailyRoutineService] 강제 수집 모드(Raw Overwrite 등). KRX 수집/Raw로드를 시작합니다. ===")
+                logger.info("[DailyRoutineService] 강제 수집 모드. KRX 수집을 시작합니다.")
             else:
-                print(f"=== [DailyRoutineService] 파일 없음. KRX 웹 수집을 시작합니다. ===")
+                logger.info("[DailyRoutineService] 파일 없음. KRX 웹 수집을 시작합니다.")
             
             data_list = self.fetch_service.fetch_all_data(date_str)
         
         if not data_list:
-            print("=== [DailyRoutineService] [Error] 데이터 확보 실패 (수집/로드 불가). 루틴을 종료합니다. ===")
+            logger.error("[DailyRoutineService] 데이터 확보 실패 (수집/로드 불가). 루틴을 종료합니다.")
             return
 
-        print(f"\n=== [DailyRoutineService] 데이터 확보 완료 ({len(data_list)}건). 리포트 작업 시작... ===")
+        logger.info(f"[DailyRoutineService] 데이터 확보 완료 ({len(data_list)}건). 리포트 작업 시작")
 
-        print("\n--- [Step 1] 일별 관심종목 파일 저장 (Prioritized) ---")
+        logger.info("[DailyRoutineService] [Step 1] 일별 관심종목 파일 저장")
         self.watchlist_port.save_watchlist(data_list)
 
-        print("\n--- [Step 2] 일별 리포트 저장 (비활성화됨) ---")
+        logger.info("[DailyRoutineService] [Step 2] 일별 리포트 저장 스킵")
         # self.daily_port.save_daily_reports(data_list)
-        print("  [DailyRoutineService] [Skip] 일별 리포트 저장을 건너뜁니다.")
 
-        print("\n--- [Step 3] 마스터 리포트 업데이트 ---")
+        logger.info("[DailyRoutineService] [Step 3] 마스터 리포트 업데이트")
         # Master Report Update
         top_stocks_map = self.master_port.update_reports(data_list)
 
-        print("\n--- [Step 4] 누적 상위종목 watchlist 저장 ---")
+        logger.info("[DailyRoutineService] [Step 4] 누적 상위종목 watchlist 저장")
         if top_stocks_map:
             self.watchlist_port.save_cumulative_watchlist(top_stocks_map, date_str)
         else:
-            print("  [DailyRoutineService] [Warn] 누적 상위종목 데이터가 없습니다")
+            logger.warning("[DailyRoutineService] 누적 상위종목 데이터가 없습니다")
 
-        print("\n--- [Step 5] 수급 순위표 업데이트 ---")
+        logger.info("[DailyRoutineService] [Step 5] 수급 순위표 업데이트")
         self.ranking_port.update_ranking_report(data_list)
 
-        print("\n=== [DailyRoutineService] 모든 루틴이 완료되었습니다. ===")
+        logger.info("[DailyRoutineService] 모든 루틴이 완료되었습니다.")

@@ -6,13 +6,13 @@ from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.styles import PatternFill, Alignment
 from openpyxl.cell.rich_text import TextBlock, CellRichText
 from openpyxl.cell.text import InlineFont
-
 from core.ports.ranking_report_port import RankingReportPort
 from core.ports.storage_port import StoragePort
 from core.ports.price_data_port import PriceDataPort
 from core.services.high_price_indicator_service import HighPriceIndicatorService
 from infra.adapters.excel.excel_formatter import ExcelFormatter
 from infra.adapters.excel.excel_sheet_builder import ExcelSheetBuilder
+from core.logger import logger
 
 
 class RankingExcelAdapter(RankingReportPort):
@@ -66,7 +66,7 @@ class RankingExcelAdapter(RankingReportPort):
         # 신고가 서비스 초기화 (price_port가 있는 경우에만)
         self.high_price_service = HighPriceIndicatorService(price_port) if price_port else None
         
-        print(f"[Adapter:RankingExcel] 초기화 완료 (템플릿: {self.template_file_path}, 신고가: {self.price_port is not None})")
+        logger.info(f"[Adapter:RankingExcel] 초기화 완료 (템플릿: {self.template_file_path}, 신고가: {self.price_port is not None})")
     
     def update_report(
         self,
@@ -122,18 +122,17 @@ class RankingExcelAdapter(RankingReportPort):
         # 템플릿 시트 제거 (사용자 요청)
         if 'template' in book.sheetnames:
             del book['template']
-            print(f"    -> [Adapter:RankingExcel] 'template' 시트 제거 완료")
+            logger.info("[Adapter:RankingExcel] template 시트 제거 완료")
         
         return self._save_workbook(book)
     
     def _load_workbook(self) -> Workbook | None:
         """워크북을 로드합니다. 파일이 없으면 템플릿을 복사하여 시작합니다."""
-        print(f"    -> [Adapter:RankingExcel] 로드 시도 ({self.source_storage.__class__.__name__})...")
+        logger.info(f"[Adapter:RankingExcel] 로드 시도 ({self.source_storage.__class__.__name__})...")
         
         # 파일이 존재하는지 확인
-        # 파일이 존재하는지 확인
         if not self.source_storage.path_exists(self.file_path):
-            print(f"    -> [Adapter:RankingExcel] 파일이 없어 템플릿 복사를 시도합니다: {self.template_file_path}")
+            logger.info(f"[Adapter:RankingExcel] 파일이 없어 템플릿 복사를 시도합니다: {self.template_file_path}")
             
             # 템플릿 파일 로드 (항상 로컬 파일시스템 사용)
             # source_storage가 Google Drive일 경우에도 템플릿은 로컬에서 읽어서 사용하기 위함
@@ -154,29 +153,29 @@ class RankingExcelAdapter(RankingReportPort):
             
             try:
                 if real_template_path:
-                    print(f"    -> [Adapter:RankingExcel] 로컬 템플릿 파일 발견: {real_template_path}")
+                    logger.info(f"[Adapter:RankingExcel] 로컬 템플릿 파일 발견: {real_template_path}")
                     with open(real_template_path, 'rb') as f:
                         template_data = f.read()
             except Exception as e:
-                print(f"    -> [Adapter:RankingExcel] [Error] 로컬 템플릿 읽기 오류: {e}")
+                logger.error(f"[Adapter:RankingExcel] 로컬 템릿 읽기 오류: {e}")
 
             if template_data:
                 # 타겟 경로에 템플릿 저장 (Source Storage에 우선 저장하여 로드 가능하게 함)
                 # 주의: 로드는 source_storage에서 하므로, source_storage에 파일이 있어야 함.
                 if self.source_storage.put_file(self.file_path, template_data):
-                    print(f"    -> [Adapter:RankingExcel] 템플릿 복사 및 업로드 성공")
+                    logger.info("[Adapter:RankingExcel] 템플릿 복사 및 업로드 성공")
                 else:
-                    print(f"    -> [Adapter:RankingExcel] [Error] 템플릿 저장(업로드) 실패")
+                    logger.error("[Adapter:RankingExcel] 템플릿 저장(업로드) 실패")
                     return None
             else:
-                print(f"    -> [Adapter:RankingExcel] [Error] 로컬 템플릿 파일을 찾을 수 없습니다: {self.template_file_path}")
+                logger.error(f"[Adapter:RankingExcel] 로컬 템플릿 파일을 찾을 수 없습니다: {self.template_file_path}")
                 # 템플릿이 없으면 새 파일 생성 로직으로 갈 수도 있지만, 여기서는 실패 처리
                 return None
 
         # 파일 로드
         book = self.source_storage.load_workbook(self.file_path)
         if not book:
-            print(f"    -> [Adapter:RankingExcel] [Error] 워크북 로드 실패: {self.file_path}")
+            logger.error(f"[Adapter:RankingExcel] 워크북 로드 실패: {self.file_path}")
             return None
             
         return book
@@ -194,7 +193,7 @@ class RankingExcelAdapter(RankingReportPort):
         if not valid_sheets:
             return streaks
 
-        print(f"    -> [Adapter:RankingExcel] 연속 등장 분석 시작 ({len(valid_sheets)}개 시트)")
+        logger.info(f"[Adapter:RankingExcel] 연속 등장 분석 시작 ({len(valid_sheets)}개 시트)")
 
         # 각 섹션별로 분석
         for key, layout in self.LAYOUT_MAP.items():
@@ -266,7 +265,7 @@ class RankingExcelAdapter(RankingReportPort):
             
         # 마지막 시트 (직전 거래일)
         last_sheet = valid_sheets[-1]
-        print(f"    -> [Adapter:RankingExcel] 이전 순위 데이터 파싱 (Source: {last_sheet.title})")
+        logger.info(f"[Adapter:RankingExcel] 이전 순위 데이터 파싱 (Source: {last_sheet.title})")
         
         for key, layout in self.LAYOUT_MAP.items():
             section_ranks = {}
@@ -317,7 +316,7 @@ class RankingExcelAdapter(RankingReportPort):
                             
                         ticker_map[stock_name] = ticker
         
-        print(f"    -> [Adapter:RankingExcel] 종목코드 매핑 생성 완료 ({len(ticker_map)}개)")
+        logger.info(f"[Adapter:RankingExcel] 종목코드 매핑 생성 완료 ({len(ticker_map)}개)")
         return ticker_map
     
     def _create_new_sheet(self, book: Workbook, report_date: datetime.date) -> Worksheet | None:
@@ -328,17 +327,17 @@ class RankingExcelAdapter(RankingReportPort):
             # 복제 소스 시트 결정 ('template' 시트 우선, 그다음 직전 영업일 시트)
             if 'template' in book.sheetnames:
                 source_sheet = book['template']
-                print(f"    -> [Adapter:RankingExcel] 'template' 시트 복제 사용")
+                logger.info("[Adapter:RankingExcel] template 시트 복제 사용")
             else:
                 # 덮어쓰려는 시트를 제외하고 시트가 있는지 확인
                 other_sheets = [s for s in book.worksheets if s.title != sheet_name]
                 if other_sheets:
                     source_sheet = other_sheets[-1]
-                    print(f"    -> [Adapter:RankingExcel] 'template' 시트가 없어 이전 시트({source_sheet.title}) 복제 사용")
+                    logger.info(f"[Adapter:RankingExcel] template 시트가 없어 이전 시트({source_sheet.title}) 복제 사용")
                 else:
                     # 유일한 시트를 덮어쓰려는데 소스도 없는 경우, 현재 시트를 소스로 둡니다.
                     source_sheet = book[sheet_name]
-                    print(f"    -> [Adapter:RankingExcel] 유일한 시트({sheet_name})를 기반으로 포맷 초기화 진행")
+                    logger.info(f"[Adapter:RankingExcel] 유일한 시트({sheet_name})를 기반으로 포맷 초기화 진행")
             
             new_sheet = book.copy_worksheet(source_sheet)
             new_sheet.title = sheet_name + "_temp"
@@ -355,12 +354,10 @@ class RankingExcelAdapter(RankingReportPort):
             if new_sheet.protection:
                 new_sheet.protection.sheet = False
             
-            print(f"    -> [Adapter:RankingExcel] '{sheet_name}' 시트 생성 완료 (보호 해제됨)")
+            logger.info(f"[Adapter:RankingExcel] '{sheet_name}' 시트 생성 완료 (보호 해제됨)")
             return new_sheet
         except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print(f"    -> [Adapter:RankingExcel] [Error] 시트 생성 실패: {e}")
+            logger.exception(f"[Adapter:RankingExcel] 시트 생성 실패: {e}")
             return None
     
     def _update_sheet_content(
@@ -597,7 +594,7 @@ class RankingExcelAdapter(RankingReportPort):
         for storage in self.target_storages:
             success = storage.save_workbook(book, self.file_path)
             if success:
-                print(f"    -> [Adapter:RankingExcel] [OK] {storage.__class__.__name__} 순위표 저장 완료")
+                logger.info(f"[Adapter:RankingExcel] {storage.__class__.__name__} 순위표 저장 완료")
             else:
                 all_success = False
         return all_success

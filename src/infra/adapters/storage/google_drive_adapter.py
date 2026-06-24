@@ -11,6 +11,7 @@ from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from core.ports.storage_port import StoragePort
+from core.logger import logger
 
 
 class GoogleDriveAdapter(StoragePort):
@@ -63,10 +64,10 @@ class GoogleDriveAdapter(StoragePort):
         
         if root_folder_id:
             self.root_folder_id = root_folder_id
-            print(f"[GoogleDrive] 초기화 완료 (지정된 Root ID: {self.root_folder_id}, Dry-run: {self.dry_run})")
+            logger.info(f"[GoogleDrive] 초기화 완료 (지정된 Root ID: {self.root_folder_id}, Dry-run: {self.dry_run})")
         else:
             self.root_folder_id = self._get_or_create_folder(root_folder_name)
-            print(f"[GoogleDrive] 초기화 완료 (Root: {root_folder_name}, ID: {self.root_folder_id}, Dry-run: {self.dry_run})")
+            logger.info(f"[GoogleDrive] 초기화 완료 (Root: {root_folder_name}, ID: {self.root_folder_id}, Dry-run: {self.dry_run})")
 
     def _authenticate(self):
         """Google Drive API 인증 (OAuth 2.0 Token)."""
@@ -75,7 +76,7 @@ class GoogleDriveAdapter(StoragePort):
             
             # 토큰 만료 시 갱신 시도
             if creds and creds.expired and creds.refresh_token:
-                print("[GoogleDrive] 토큰 만료, 갱신 시도...")
+                logger.info("[GoogleDrive] 토큰 만료, 갱신 시도...")
                 creds.refresh(Request())
                 
                 # 갱신된 토큰 저장
@@ -109,7 +110,7 @@ class GoogleDriveAdapter(StoragePort):
                 'parents': [parent_id]
             }
             file = self.drive_service.files().create(body=file_metadata, fields='id').execute()
-            print(f"[GoogleDrive] [Folder] 폴더 생성: {folder_name} (ID: {file.get('id')})")
+            logger.info(f"[GoogleDrive] 폴더 생성: {folder_name} (ID: {file.get('id')})")
             return file.get('id')
 
     def _get_file_id(self, path: str) -> Optional[str]:
@@ -170,7 +171,7 @@ class GoogleDriveAdapter(StoragePort):
             bool: 성공 여부.
         """
         if self.dry_run:
-            print(f"[GoogleDrive] [Dry-run] Would upload Excel to: {path}")
+            logger.info(f"[GoogleDrive] [Dry-run] Would upload Excel to: {path}")
             return True
         try:
             # 메모리에 Excel 파일 생성
@@ -180,10 +181,10 @@ class GoogleDriveAdapter(StoragePort):
             output.seek(0)
 
             self._upload_file(output, path, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-            print(f"[GoogleDrive] [OK] Excel 업로드: {path}")
+            logger.info(f"[GoogleDrive] Excel 업로드 성공: {path}")
             return True
         except Exception as e:
-            print(f"[GoogleDrive] [Error] Excel 업로드 실패 ({path}): {e}")
+            logger.error(f"[GoogleDrive] Excel 업로드 실패 ({path}): {e}")
             return False
 
     def save_dataframe_csv(self, df: pd.DataFrame, path: str, **kwargs) -> bool:
@@ -198,7 +199,7 @@ class GoogleDriveAdapter(StoragePort):
             bool: 성공 여부.
         """
         if self.dry_run:
-            print(f"[GoogleDrive] [Dry-run] Would upload CSV to: {path}")
+            logger.info(f"[GoogleDrive] [Dry-run] Would upload CSV to: {path}")
             return True
         try:
             # 메모리에 CSV 생성 (BytesIO 사용을 위해 인코딩 처리)
@@ -215,10 +216,10 @@ class GoogleDriveAdapter(StoragePort):
             output_bytes = io.BytesIO(output_str.getvalue().encode(encoding))
 
             self._upload_file(output_bytes, path, 'text/csv')
-            print(f"[GoogleDrive] [OK] CSV 업로드: {path} (encoding: {encoding})")
+            logger.info(f"[GoogleDrive] CSV 업로드 성공: {path} (encoding: {encoding})")
             return True
         except Exception as e:
-            print(f"[GoogleDrive] [Error] CSV 업로드 실패 ({path}): {e}")
+            logger.error(f"[GoogleDrive] CSV 업로드 실패 ({path}): {e}")
             return False
 
     def save_workbook(self, book: openpyxl.Workbook, path: str) -> bool:
@@ -232,7 +233,7 @@ class GoogleDriveAdapter(StoragePort):
             bool: 성공 여부.
         """
         if self.dry_run:
-            print(f"[GoogleDrive] [Dry-run] Would upload Workbook to: {path}")
+            logger.info(f"[GoogleDrive] [Dry-run] Would upload Workbook to: {path}")
             return True
         try:
             output = io.BytesIO()
@@ -240,10 +241,10 @@ class GoogleDriveAdapter(StoragePort):
             output.seek(0)
 
             self._upload_file(output, path, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-            print(f"[GoogleDrive] [OK] Workbook 업로드: {path}")
+            logger.info(f"[GoogleDrive] Workbook 업로드 성공: {path}")
             return True
         except Exception as e:
-            print(f"[GoogleDrive] [Error] Workbook 업로드 실패 ({path}): {e}")
+            logger.error(f"[GoogleDrive] Workbook 업로드 실패 ({path}): {e}")
             return False
 
     def _upload_file(self, data: io.BytesIO, path: str, mime_type: str):
@@ -295,7 +296,7 @@ class GoogleDriveAdapter(StoragePort):
         try:
             file_id = self._get_file_id(path)
             if not file_id:
-                print(f"[GoogleDrive] [Warn] 파일 없음: {path}")
+                logger.warning(f"[GoogleDrive] 파일 없음: {path}")
                 return None
 
             request = self.drive_service.files().get_media(fileId=file_id)
@@ -308,7 +309,7 @@ class GoogleDriveAdapter(StoragePort):
             fh.seek(0)
             return openpyxl.load_workbook(fh)
         except Exception as e:
-            print(f"[GoogleDrive] [Error] Workbook 로드 실패 ({path}): {e}")
+            logger.error(f"[GoogleDrive] Workbook 로드 실패 ({path}): {e}")
             return None
 
     def path_exists(self, path: str) -> bool:
@@ -335,7 +336,7 @@ class GoogleDriveAdapter(StoragePort):
             self._ensure_path_directories(path + "/dummy") # 부모 디렉토리 생성 로직 재사용
             return True
         except Exception as e:
-            print(f"[GoogleDrive] [Error] 디렉토리 생성 실패 ({path}): {e}")
+            logger.error(f"[GoogleDrive] 디렉토리 생성 실패 ({path}): {e}")
             return False
 
     def load_dataframe(self, path: str, sheet_name: str = None, **kwargs) -> pd.DataFrame:
@@ -366,7 +367,7 @@ class GoogleDriveAdapter(StoragePort):
             target_sheet = 0 if sheet_name is None else sheet_name
             return pd.read_excel(fh, sheet_name=target_sheet, **kwargs)
         except Exception as e:
-            print(f"[GoogleDrive] [Error] DataFrame 로드 실패 ({path}): {e}")
+            logger.error(f"[GoogleDrive] DataFrame 로드 실패 ({path}): {e}")
             return pd.DataFrame()
 
     def get_file(self, path: str) -> Optional[bytes]:
@@ -393,7 +394,7 @@ class GoogleDriveAdapter(StoragePort):
             fh.seek(0)
             return fh.read()
         except Exception as e:
-            print(f"[GoogleDrive] [Error] 파일 다운로드 실패 ({path}): {e}")
+            logger.error(f"[GoogleDrive] 파일 다운로드 실패 ({path}): {e}")
             return None
 
     def put_file(self, path: str, data: bytes) -> bool:
@@ -407,7 +408,7 @@ class GoogleDriveAdapter(StoragePort):
             bool: 성공 여부.
         """
         if self.dry_run:
-            print(f"[GoogleDrive] [Dry-run] Would upload file (bytes: {len(data)}) to: {path}")
+            logger.info(f"[GoogleDrive] [Dry-run] Would upload file (bytes: {len(data)}) to: {path}")
             return True
         try:
             # MIME 타입 추론 (간단하게)
@@ -420,10 +421,10 @@ class GoogleDriveAdapter(StoragePort):
 
             output = io.BytesIO(data)
             self._upload_file(output, path, mime_type)
-            print(f"[GoogleDrive] [OK] 파일 업로드: {path}")
+            logger.info(f"[GoogleDrive] 파일 업로드 성공: {path}")
             return True
         except Exception as e:
-            print(f"[GoogleDrive] [Error] 파일 업로드 실패 ({path}): {e}")
+            logger.error(f"[GoogleDrive] 파일 업로드 실패 ({path}): {e}")
             return False
     def list_files(self, directory_path: str) -> list[str]:
         """디렉토리 내의 파일 리스트를 반환합니다.
@@ -449,5 +450,5 @@ class GoogleDriveAdapter(StoragePort):
             # 폴더를 제외하고 파일만 반환
             return [f['name'] for f in files if f['mimeType'] != 'application/vnd.google-apps.folder']
         except Exception as e:
-            print(f"[GoogleDrive] [Error] 파일 목록 조회 실패 ({directory_path}): {e}")
+            logger.error(f"[GoogleDrive] 파일 목록 조회 실패 ({directory_path}): {e}")
             return []

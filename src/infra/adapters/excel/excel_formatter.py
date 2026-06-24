@@ -130,6 +130,41 @@ class ExcelFormatter:
     
 
     @staticmethod
+    def apply_common_stock_fill(
+        ws: Worksheet,
+        stock_col_letter: str,
+        start_row: int,
+        row_count: int,
+        common_stocks: Set[str],
+        color_key: str = 'common_blue'
+    ):
+        """공통 종목에 배경색을 적용합니다.
+        
+        Args:
+            ws (Worksheet): 워크시트.
+            stock_col_letter (str): 종목명이 들어있는 열 문자 (예: 'D').
+            start_row (int): 시작 행.
+            row_count (int): 검사할 행 개수.
+            common_stocks (Set[str]): 공통 종목명 집합.
+            color_key (str): 색상 키 (기본: 'common_blue').
+        """
+        fill = PatternFill(
+            start_color=ExcelFormatter.COLORS[color_key],
+            end_color=ExcelFormatter.COLORS[color_key],
+            fill_type="solid"
+        )
+        
+        for i in range(row_count):
+            row = start_row + i
+            cell = ws[f"{stock_col_letter}{row}"]
+            val = cell.value
+            if val and isinstance(val, str):
+                # (쌍) 표시가 붙어 있을 수 있으므로 제거 후 비교
+                clean_name = val.replace(' (쌍)', '').strip()
+                if clean_name in common_stocks:
+                    cell.fill = fill
+
+    @staticmethod
     def set_column_width(ws: Worksheet, column_letter: str, width: float):
         """열 너비를 설정합니다.
         

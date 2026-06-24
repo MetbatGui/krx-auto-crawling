@@ -4,8 +4,7 @@ from core.services.krx_fetch_service import KrxFetchService
 from core.domain.models import Market, Investor
 from tests.fakes.fake_krx_adapter import FakeKrxAdapter
 
-@pytest.mark.asyncio
-async def test_fetch_all_data_success():
+def test_fetch_all_data_success():
     """전체 데이터 수집 성공 케이스 검증"""
     # Given
     # 유효한 엑셀 바이너리 생성 (순매수_거래대금 컬럼 포함)
@@ -20,7 +19,7 @@ async def test_fetch_all_data_success():
     service = KrxFetchService(krx_port=fake_adapter)
     
     # When
-    results = await service.fetch_all_data("20250101")
+    results = service.fetch_all_data("20250101")
     
     # Then
     # 4개 타겟(KOSPI/KOSDAQ * Foreigner/Institutions)에 대해 모두 성공해야 함
@@ -51,14 +50,14 @@ def test_parse_and_filter_data_handles_parsing_error():
     # Then
     assert df.empty
 
-def test_parse_and_filter_data_extracts_top_20():
-    """상위 20개 추출 및 컬럼명 변경 검증"""
+def test_parse_and_filter_data_extracts_top_30():
+    """상위 30개 추출 및 컬럼명 변경 검증"""
     # Given
     # 30개 데이터 생성
     data = {
         '종목코드': [f'{i}' for i in range(30)],
         '종목명': [f'Stock{i}' for i in range(30)],
-        '순매수_거래대금': [i * 100 for i in range(30)] # 0, 100, ..., 2900
+        '순매수_거래대금': [i * 100 * 1_000_000 for i in range(30)] # 0, 100M, ..., 2900M
     }
     df = pd.DataFrame(data)
     
@@ -74,7 +73,7 @@ def test_parse_and_filter_data_extracts_top_20():
     result_df = service._parse_and_filter_data(excel_bytes)
     
     # Then
-    assert len(result_df) == 20
+    assert len(result_df) == 30
     # 가장 큰 값이 첫 번째여야 함 (2900)
     assert result_df['순매수_거래대금'].iloc[0] == 2900
     assert result_df['종목명'].iloc[0] == 'Stock29'

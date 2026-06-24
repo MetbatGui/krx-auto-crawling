@@ -2,6 +2,7 @@ import typer
 import datetime
 from dotenv import load_dotenv
 import os
+from core.logger import logger
 
 # Services
 from core.services.daily_routine_service import DailyRoutineService
@@ -46,6 +47,7 @@ def crawl(
         target_date = date
         # 간단한 날짜 형식 검증
         if len(target_date) != 8 or not target_date.isdigit():
+            logger.error(f"[CLI] 잘못된 날짜 형식입니다: {target_date}. YYYYMMDD 형식을 사용해주세요.")
             typer.echo(f"[CLI] 잘못된 날짜 형식입니다: {target_date}. YYYYMMDD 형식을 사용해주세요.", err=True)
             raise typer.Exit(code=1)
     else:
@@ -63,14 +65,14 @@ def crawl(
     source_storage = local_storage
 
     if dry_run:
-        typer.echo("--- [CLI] Running in Dry-run Mode (No files will be written) ---")
+        logger.info("--- [CLI] Running in Dry-run Mode (No files will be written) ---")
 
     if drive:
         # Google Drive Mode
         root_folder_id = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID")
         try:
             if os.path.exists(TOKEN_FILE):
-                print(f"[CLI] Google Drive 인증 (OAuth Token) 사용 ({TOKEN_FILE})")
+                logger.info(f"[CLI] Google Drive 인증 (OAuth Token) 사용 ({TOKEN_FILE})")
                 drive_storage = GoogleDriveAdapter(
                     token_file=TOKEN_FILE,
                     root_folder_id=root_folder_id,
@@ -78,7 +80,7 @@ def crawl(
                     dry_run=dry_run
                 )
                 
-                typer.echo(f"--- [CLI] Storage Mode: Hybrid (Source: Drive, Target: Local+Drive) ---")
+                logger.info(f"--- [CLI] Storage Mode: Hybrid (Source: Drive, Target: Local+Drive) ---")
                 
                 # Source를 Drive로 변경하여 최신 데이터를 가져옴
                 source_storage = drive_storage
@@ -87,17 +89,17 @@ def crawl(
                 save_storages.append(drive_storage)
                 
             else:
-                typer.echo(f"[CLI] Google Drive 토큰 파일 없음 ({TOKEN_FILE})", err=True)
-                typer.echo("`netbuy auth` 명령어를 실행하여 인증을 먼저 진행해주세요.", err=True)
+                logger.error(f"[CLI] Google Drive 토큰 파일 없음 ({TOKEN_FILE})")
+                logger.error("`netbuy auth` 명령어를 실행하여 인증을 먼저 진행해주세요.")
                 raise typer.Exit(code=1)
             
         except Exception as e:
-            typer.echo(f"[CLI] Google Drive 초기화 실패: {e}", err=True)
+            logger.error(f"[CLI] Google Drive 초기화 실패: {e}")
             raise typer.Exit(code=1)
             
     else:
         # Local Mode (Default)
-        typer.echo(f"--- [CLI] Storage Mode: Local Only ---")
+        logger.info(f"--- [CLI] Storage Mode: Local Only ---")
     
     # 5. 어댑터(Adapters) 인스턴스 생성 및 의존성 주입
     # (Infra Layer)
@@ -154,7 +156,7 @@ def crawl(
     try:
         routine_service.execute(date_str=target_date, force_fetch=False)
     except Exception as e:
-        typer.echo(f"\n[CLI] [Critical] Critical Error during execution: {e}", err=True)
+        logger.error(f"[CLI] [Critical] Critical Error during execution: {e}")
         raise typer.Exit(code=1)
 
 if __name__ == "__main__":

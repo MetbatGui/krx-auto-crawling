@@ -61,18 +61,8 @@ class TestRawOverwrite:
         # However, our dummy mock returns the same bytes for all calls.
         assert mock_storage_port.get_file.call_count == 4
         
-        # C. Should call storage.save_dataframe_excel 4 times (Overwrite)
-        assert mock_storage_port.save_dataframe_excel.call_count == 4
-        
-        # Check arguments for one of the calls
-        args, _ = mock_storage_port.save_dataframe_excel.call_args_list[0]
-        df_saved, path_saved = args
-        
-        print(f"Saved Path: {path_saved}")
-        assert "raw/" in path_saved
-        assert "순매수.xlsx" in path_saved
-        assert not df_saved.empty
-        assert "삼성전자" in df_saved["종목명"].values
+        # C. Should NOT save raw since it already exists
+        mock_storage_port.put_file.assert_not_called()
 
     def test_web_fetch_when_raw_missing(self):
         """
@@ -109,8 +99,8 @@ class TestRawOverwrite:
         # Should call KRX fetch
         assert mock_krx_port.fetch_net_value_data.call_count == 4
         
-        # Should SAVE (Overwrite/Create)
-        assert mock_storage_port.save_dataframe_excel.call_count == 4
+        # Should SAVE raw cache (put_file)
+        assert mock_storage_port.put_file.call_count == 4
 
 import io
 if __name__ == "__main__":

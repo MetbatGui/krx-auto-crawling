@@ -3,6 +3,7 @@ import datetime
 import os
 from typing import Optional, List
 from dotenv import load_dotenv
+from core.logger import logger
 
 # Ports & Services
 from core.services.daily_routine_service import DailyRoutineService
@@ -44,7 +45,7 @@ def backfill(
     else:
         end_date = datetime.date.today()
         
-    print(f"[CLI:Backfill] 범위 설정: {start_date} ~ {end_date}")
+    logger.info(f"[CLI:Backfill] 범위 설정: {start_date} ~ {end_date}")
     
     # 2. 저장소 초기화
     BASE_OUTPUT_PATH = "output"
@@ -55,7 +56,7 @@ def backfill(
     source_storage = local_storage
 
     if dry_run:
-        print("[CLI:Backfill] Running in Dry-run Mode (No files will be written)")
+        logger.info("[CLI:Backfill] Running in Dry-run Mode (No files will be written)")
 
     if drive:
         root_folder_id = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID")
@@ -68,7 +69,7 @@ def backfill(
             )
             save_storages.append(drive_storage)
             source_storage = drive_storage
-            print("[CLI:Backfill] Google Drive 모드 활성화 (Hybrid)")
+            logger.info("[CLI:Backfill] Google Drive 모드 활성화 (Hybrid)")
     
     # 3. 완료된 날짜 스캔 (관심종목 폴더 활용)
     completed_dates = set()
@@ -84,7 +85,7 @@ def backfill(
                 if len(date_part) == 8 and date_part.isdigit():
                     completed_dates.add(date_part)
     
-    print(f"[CLI:Backfill] 스캔 완료: {len(completed_dates)}개 날짜 수집 확인됨")
+    logger.info(f"[CLI:Backfill] 스캔 완료: {len(completed_dates)}개 날짜 수집 확인됨")
     
     # 4. 수집 대상 날짜 추출 (평일 & 미수집)
     target_dates = []
@@ -97,10 +98,10 @@ def backfill(
         curr += datetime.timedelta(days=1)
     
     if not target_dates:
-        print("[CLI:Backfill] 수집할 누락 데이터가 없습니다. 종료합니다.")
+        logger.info("[CLI:Backfill] 수집할 누락 데이터가 없습니다. 종료합니다.")
         return
         
-    print(f"[CLI:Backfill] 총 {len(target_dates)}개 영업일 누락 발견: {target_dates}")
+    logger.info(f"[CLI:Backfill] 총 {len(target_dates)}개 영업일 누락 발견: {target_dates}")
     
     # 5. 어댑터 및 서비스 초기화 (crawl.py 로직 준수)
     unified_krx_adapter = NativeKrxAdapter()
@@ -151,15 +152,13 @@ def backfill(
     
     for ds in target_dates:
         try:
-            print(f"\n>>> [Backfill] {ds} 처리 중...")
+            logger.info(f"[Backfill] {ds} 처리 중...")
             routine_service.execute(date_str=ds)
             success_count += 1
         except Exception as e:
-            print(f">>> [Backfill] [Error] {ds} 처리 중 치명적 오류: {e}")
+            logger.error(f"[Backfill] [Error] {ds} 처리 중 치명적 오류: {e}")
             fail_count += 1
             
-    print(f"\n=== [Backfill] 완료 ===")
-    print(f"성공: {success_count}")
-    print(f"실패: {fail_count}")
+    logger.info(f"[Backfill] 완료 - 성공: {success_count}, 실패: {fail_count}")
     if target_dates:
-         print(f"대상: {target_dates}")
+         logger.info(f"[Backfill] 대상: {target_dates}")

@@ -92,8 +92,8 @@ class RankingExcelAdapter(RankingReportPort):
         if not book:
             return False
         
-        # 이전 순위 파싱 (새 시트 생성 전에 수행)
-        previous_rankings = self._parse_previous_rankings(book)
+        # 이전 순위 파싱 (새 시트 생성 전에 수행, 덮어쓸 당일 시트는 제외)
+        previous_rankings = self._parse_previous_rankings(book, report_date)
         
         # 신고가 지표 분석 (price_port가 있는 경우에만)
         high_price_indicators = {}
@@ -181,12 +181,13 @@ class RankingExcelAdapter(RankingReportPort):
             
         return book
 
-    def _analyze_consecutive_streaks(self, book: Workbook, current_date: datetime.date) -> Dict[str, Dict[str, int]]:
+    def _analyze_consecutive_streaks(self, book: Workbook, report_date: datetime.date) -> Dict[str, Dict[str, int]]:
         """과거 시트들을 분석하여 연속 등장 횟수를 계산합니다."""
         streaks = {}
         
-        # 분석할 시트 목록 가져오기 (template 제외, 최신순 정렬)
-        valid_sheets = [s for s in book.worksheets if s.title != 'template']
+        target_sheet_name = report_date.strftime('%m%d')
+        # 분석할 시트 목록 가져오기 (template 및 덮어쓸 당일 시트 제외, 최신순 정렬)
+        valid_sheets = [s for s in book.worksheets if s.title not in ('template', target_sheet_name)]
         # 이미 날짜순으로 되어 있다고 가정 (append 방식이므로)
         # 역순으로 순회 (최신 -> 과거)
         
@@ -252,16 +253,19 @@ class RankingExcelAdapter(RankingReportPort):
             
         return streaks
 
-    def _parse_previous_rankings(self, book: Workbook) -> Dict[str, Dict[str, int]]:
-        """마지막 시트에서 이전 순위를 파싱합니다."""
+    def _parse_previous_rankings(self, book: Workbook, report_date: datetime.date) -> Dict[str, Dict[str, int]]:
+        """과거 시트에서 이전 순위를 파싱합니다."""
         rankings = {}
         
-        # 시트가 없거나 'template' 하나뿐이면 이전 데이터 없음
-        if not book.worksheets or (len(book.worksheets) == 1 and 'template' in book.sheetnames):
+        target_sheet_name = report_date.strftime('%m%d')
+        valid_sheets = [s for s in book.worksheets if s.title not in ('template', target_sheet_name)]
+        
+        # 유효한 과거 시트가 없으면 이전 데이터 없음
+        if not valid_sheets:
             return rankings
             
         # 마지막 시트 (직전 거래일)
-        last_sheet = book.worksheets[-1]
+        last_sheet = valid_sheets[-1]
         print(f"    -> [Adapter:RankingExcel] 이전 순위 데이터 파싱 (Source: {last_sheet.title})")
         
         for key, layout in self.LAYOUT_MAP.items():
@@ -580,6 +584,15 @@ class RankingExcelAdapter(RankingReportPort):
     
     def _save_workbook(self, book: Workbook) -> bool:
         """워크북을 저장합니다 (Target Storages 사용)."""
+        # 시트 목록 정렬 로직 추가 (MMDD 형식의 숫자는 날짜 순서대로, 그 외는 맨 앞으로)
+        def get_sheet_sort_key(sheet):
+            name = sheet.title
+            if name.isdigit() and len(name) == 4:
+                return (1, name)
+            return (0, name)
+            
+        book._sheets = sorted(book._sheets, key=get_sheet_sort_key)
+
         all_success = True
         for storage in self.target_storages:
             success = storage.save_workbook(book, self.file_path)

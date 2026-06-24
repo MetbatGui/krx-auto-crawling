@@ -89,8 +89,9 @@ class DailyRoutineService:
         print("\n--- [Step 1] 일별 관심종목 파일 저장 (Prioritized) ---")
         self.watchlist_port.save_watchlist(data_list)
 
-        print("\n--- [Step 2] 일별 리포트 저장 ---")
-        self.daily_port.save_daily_reports(data_list)
+        print("\n--- [Step 2] 일별 리포트 저장 (비활성화됨) ---")
+        # self.daily_port.save_daily_reports(data_list)
+        print("  [DailyRoutineService] [Skip] 일별 리포트 저장을 건너뜁니다.")
 
         print("\n--- [Step 3] 마스터 리포트 업데이트 ---")
         # Master Report Update

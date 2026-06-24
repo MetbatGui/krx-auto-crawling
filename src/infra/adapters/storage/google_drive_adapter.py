@@ -106,7 +106,7 @@ class GoogleDriveAdapter(StoragePort):
                 'parents': [parent_id]
             }
             file = self.drive_service.files().create(body=file_metadata, fields='id').execute()
-            print(f"[GoogleDrive] 📁 폴더 생성: {folder_name} (ID: {file.get('id')})")
+            print(f"[GoogleDrive] [Folder] 폴더 생성: {folder_name} (ID: {file.get('id')})")
             return file.get('id')
 
     def _get_file_id(self, path: str) -> Optional[str]:
@@ -410,3 +410,29 @@ class GoogleDriveAdapter(StoragePort):
         except Exception as e:
             print(f"[GoogleDrive] [Error] 파일 업로드 실패 ({path}): {e}")
             return False
+    def list_files(self, directory_path: str) -> list[str]:
+        """디렉토리 내의 파일 리스트를 반환합니다.
+        
+        Args:
+            directory_path (str): 디렉토리 경로 (root_folder_id 상대 경로).
+            
+        Returns:
+            list[str]: 파일명 리스트.
+        """
+        try:
+            folder_id = self._get_file_id(directory_path)
+            if not folder_id:
+                return []
+            
+            query = f"'{folder_id}' in parents and trashed = false"
+            results = self.drive_service.files().list(
+                q=query, 
+                fields="files(name, mimeType)"
+            ).execute()
+            
+            files = results.get('files', [])
+            # 폴더를 제외하고 파일만 반환
+            return [f['name'] for f in files if f['mimeType'] != 'application/vnd.google-apps.folder']
+        except Exception as e:
+            print(f"[GoogleDrive] [Error] 파일 목록 조회 실패 ({directory_path}): {e}")
+            return []

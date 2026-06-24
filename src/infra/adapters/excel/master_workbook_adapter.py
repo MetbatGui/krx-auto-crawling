@@ -75,7 +75,7 @@ class MasterWorkbookAdapter:
             for storage in self.target_storages:
                 success = storage.save_workbook(book, file_path)
                 if success:
-                    print(f"    -> [Adapter:MasterWorkbook] ✅ {storage.__class__.__name__} 저장 완료")
+                    print(f"    -> [Adapter:MasterWorkbook] [OK] {storage.__class__.__name__} 저장 완료")
                     if not pivot_data.empty:
                         # 로그는 한 번만 출력하거나 저장소별로 출력
                         pass
@@ -88,5 +88,5 @@ class MasterWorkbookAdapter:
             return all_success
             
         except Exception as e:
-            print(f"    -> [Adapter:MasterWorkbook] 🚨 워크북 저장 실패: {e}")
+            print(f"    -> [Adapter:MasterWorkbook] [Error] 워크북 저장 실패: {e}")
             return False

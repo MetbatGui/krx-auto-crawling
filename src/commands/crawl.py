@@ -14,7 +14,7 @@ from core.services.ranking_data_service import RankingDataService
 # Adapters
 from infra.adapters.storage import LocalStorageAdapter
 from infra.adapters.native_krx_adapter import NativeKrxAdapter
-from infra.adapters.storage.google_drive_adapter import GoogleDriveAdapter
+from infra.adapters.naver_price_adapter import NaverPriceDataAdapter
 from infra.adapters.storage.google_drive_adapter import GoogleDriveAdapter
 from infra.adapters.daily_excel_adapter import DailyExcelAdapter
 from infra.adapters.watchlist_file_adapter import WatchlistFileAdapter
@@ -44,7 +44,7 @@ def crawl(
         target_date = date
         # 간단한 날짜 형식 검증
         if len(target_date) != 8 or not target_date.isdigit():
-            typer.echo(f"🚨 [CLI] 잘못된 날짜 형식입니다: {target_date}. YYYYMMDD 형식을 사용해주세요.", err=True)
+            typer.echo(f"[CLI] 잘못된 날짜 형식입니다: {target_date}. YYYYMMDD 형식을 사용해주세요.", err=True)
             raise typer.Exit(code=1)
     else:
         target_date = datetime.date.today().strftime('%Y%m%d')
@@ -87,12 +87,12 @@ def crawl(
                 save_storages.append(drive_storage)
                 
             else:
-                typer.echo(f"🚨 [CLI] Google Drive 토큰 파일 없음 ({TOKEN_FILE})", err=True)
+                typer.echo(f"[CLI] Google Drive 토큰 파일 없음 ({TOKEN_FILE})", err=True)
                 typer.echo("`netbuy auth` 명령어를 실행하여 인증을 먼저 진행해주세요.", err=True)
                 raise typer.Exit(code=1)
             
         except Exception as e:
-            typer.echo(f"🚨 [CLI] Google Drive 초기화 실패: {e}", err=True)
+            typer.echo(f"[CLI] Google Drive 초기화 실패: {e}", err=True)
             raise typer.Exit(code=1)
             
     else:
@@ -133,10 +133,11 @@ def crawl(
     
     # Ranking 서비스 조립 (헥사고날 아키텍처)
     ranking_data_service = RankingDataService(top_n=30)
+    naver_price_adapter = NaverPriceDataAdapter(max_workers=10)
     ranking_report_adapter = RankingExcelAdapter(
         source_storage=source_storage, 
         target_storages=save_storages,
-        price_port=unified_krx_adapter
+        price_port=naver_price_adapter
     )
     ranking_service = RankingAnalysisService(
         data_service=ranking_data_service,

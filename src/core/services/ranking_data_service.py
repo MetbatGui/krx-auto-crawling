@@ -72,6 +72,6 @@ class RankingDataService:
             bool: 유효성 검증 결과.
         """
         if not data_list:
-            print("[DataService:Ranking] ⚠️ 데이터가 없습니다")
+            print("[DataService:Ranking] [Warn] 데이터가 없습니다")
             return False
         return True

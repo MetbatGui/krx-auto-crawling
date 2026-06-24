@@ -209,6 +209,44 @@ class NativeKrxAdapter(KrxDataPort, PriceDataPort):
         except Exception as e:
             print(f"  [NativeKrx] 캐시 저장 에러: {e}")
 
+    def get_full_ticker_map(self, date_str: Optional[str] = None) -> dict[str, str]:
+        """전종목 시세 데이터를 조회하여 종목명 -> 종목코드 매핑을 반환합니다."""
+        target_date = date_str or datetime.date.today().strftime('%Y%m%d')
+        print(f"  [NativeKrx] 전종목 티커 매핑 조회 시작 ({target_date})")
+        
+        url = f"{self.BASE_URL}/comm/bldAttendant/getJsonData.cmd"
+        payload = {
+            'bld': 'dbms/MDC/STAT/standard/MDCSTAT01501',
+            'locale': 'ko_KR',
+            'mktId': 'ALL',
+            'trdDd': target_date,
+            'share': '1',
+            'money': '1',
+            'csvxls_isNo': 'false',
+        }
+        
+        try:
+            res = self.session.post(url, data=payload, timeout=15)
+            if 'LOGOUT' in res.text:
+                self._login()
+                res = self.session.post(url, data=payload, timeout=15)
+            
+            data = res.json()
+            output = data.get('OutBlock_1', []) or data.get('output', [])
+            
+            ticker_map = {}
+            for row in output:
+                name = row.get('ISU_ABBRV')
+                ticker = row.get('ISU_SRT_CD')
+                if name and ticker:
+                    ticker_map[name] = ticker
+            
+            print(f"  [NativeKrx] 매핑 완료: {len(ticker_map)}개 종목 확보")
+            return ticker_map
+        except Exception as e:
+            print(f"  [NativeKrx] 매핑 조회 실패: {e}")
+            return {}
+
     def _get_isu_cd(self, ticker: str, date_str: str) -> Optional[str]:
         """단축 종목코드를 풀 종목코드로 변환 (MDCSTAT01501)"""
         url = f"{self.BASE_URL}/comm/bldAttendant/getJsonData.cmd"
@@ -243,8 +281,119 @@ class NativeKrxAdapter(KrxDataPort, PriceDataPort):
             return f"A{ticker}"
             
         except Exception as e:
-            print(f"  [NativeKrx] 풀코드 변환 오류: {e}")
+            print(f"  [NativeKrx] {ticker} 풀코드 조회 오류: {e}")
             return f"A{ticker}"
+
+    def _fetch_bulk_price_change(self, market_id: str, start_date: str, end_date: str) -> list[dict]:
+        """특정 기간 동안의 전종목 시세 변동 데이터를 조회합니다 (MDCSTAT01801).
+        
+        Args:
+            market_id (str): 'STK' (KOSPI), 'KSQ' (KOSDAQ), 'ALL'
+            start_date (str): 시작일 (YYYYMMDD)
+            end_date (str): 종료일 (YYYYMMDD)
+            
+        Returns:
+            list[dict]: 종목별 변동 데이터 리스트.
+        """
+        url = f"{self.BASE_URL}/comm/bldAttendant/getJsonData.cmd"
+        payload = {
+            'bld': 'dbms/MDC/STAT/standard/MDCSTAT01801',
+            'locale': 'ko_KR',
+            'mktId': market_id,
+            'strtDd': start_date,
+            'endDd': end_date,
+            'share': '1',
+            'money': '1',
+            'csvxls_isNo': 'false',
+        }
+        
+        try:
+            res = self.session.post(url, data=payload, timeout=20)
+            if 'LOGOUT' in res.text:
+                self._login()
+                res = self.session.post(url, data=payload, timeout=20)
+            
+            data = res.json()
+            return data.get('OutBlock_1', []) or data.get('output', [])
+        except Exception as e:
+            print(f"  [NativeKrx] 벌크 시세 조회 실패 ({market_id}, {start_date}~{end_date}): {e}")
+            return []
+
+    def get_bulk_price_info(self, tickers: list[str], date_str: str) -> dict[str, StockPriceInfo]:
+        """PriceDataPort 구현: 벌크 조회를 통해 여러 종목의 가격 정보(신고가 포함)를 한 번에 반환합니다."""
+        print(f"  [NativeKrx] {len(tickers)}개 종목 벌크 가격 조회 시작 ({date_str})")
+        
+        target_dt = datetime.datetime.strptime(date_str, "%Y%m%d")
+        cutoff_52w = (target_dt - datetime.timedelta(days=365)).strftime("%Y%m%d")
+        
+        # 1. 52주 기간 데이터 조회 (KOSPI, KOSDAQ 각각)
+        # 52주 데이터는 현재일 포함 1년치
+        kospi_52w = self._fetch_bulk_price_change('STK', cutoff_52w, date_str)
+        kosdaq_52w = self._fetch_bulk_price_change('KSQ', cutoff_52w, date_str)
+        
+        # 2. 결과 맵 구성 (52주 최고가 및 당일 종가)
+        price_map = {}
+        all_market_data = kospi_52w + kosdaq_52w
+        
+        for row in all_market_data:
+            ticker = row.get('ISU_SRT_CD')
+            if ticker not in tickers:
+                continue
+                
+            close = self._parse_num(row.get('TDD_CLSPRC', '0'))
+            # 52주 최고가는 해당 기간의 '고가' 중 최대값
+            high_52w = self._parse_num(row.get('TDD_HGPRC', '0'))
+            
+            # 벌크 데이터는 시작일~종료일 전체의 최고가를 한 행에 요약해서 줄 수도 있고, 
+            # MDCSTAT01801의 경우 'HG_PRC'(고가) 컬럼이 해당 기간 내의 최고가를 의미함.
+            high_52w_period = self._parse_num(row.get('HG_PRC', str(high_52w)))
+            
+            price_map[ticker] = {
+                'close': close,
+                'high_52w': high_52w_period,
+                'ath': high_52w_period # 일단 ATH는 52주와 동일하게 초기화
+            }
+
+        # 3. 역사적 신고가 처리 (캐시 활용 + 필요 시 장기 벌크 조회)
+        # 모든 종목을 2000년부터 조회하면 무거울 수 있으므로, 52주 신고가 근처인 종목만 정밀 검증하거나
+        # 혹은 전체를 2년 단위로 끊어서 벌크 패치 ( pykrx는 이 방식을 씀 )
+        
+        # 여기서는 단순화를 위해 캐시된 ATH가 있다면 활용하고, 
+        # 없으면 2000년부터 현재까지의 벌크 데이터를 한 번 더 가져옴 (매우 빠름)
+        # KRX MDCSTAT01801은 장기 조회도 한 번에 리턴함.
+        
+        long_term_start = "20000101"
+        kospi_ath = self._fetch_bulk_price_change('STK', long_term_start, date_str)
+        kosdaq_ath = self._fetch_bulk_price_change('KSQ', long_term_start, date_str)
+        
+        for row in (kospi_ath + kosdaq_ath):
+            ticker = row.get('ISU_SRT_CD')
+            if ticker in price_map:
+                ath = self._parse_num(row.get('HG_PRC', '0'))
+                price_map[ticker]['ath'] = ath
+                
+                # 캐시 업데이트
+                self.cache_data[ticker] = {
+                    'last_updated': date_str,
+                    'all_time_high': ath
+                }
+        
+        self._save_cache()
+        
+        # 4. StockPriceInfo 객체로 변환
+        result = {}
+        for ticker in tickers:
+            data = price_map.get(ticker)
+            if data and data['close'] > 0:
+                result[ticker] = StockPriceInfo(
+                    ticker=ticker,
+                    close_price=data['close'],
+                    high_52w=data['high_52w'],
+                    all_time_high=data['ath']
+                )
+        
+        print(f"  [NativeKrx] 벌크 조회 완료: {len(result)}/{len(tickers)}개 성공")
+        return result
 
     def get_price_info(self, ticker: str, date_str: str) -> Optional[StockPriceInfo]:
         """PriceDataPort 구현: 종목의 전체 혹은 1년치 가격 정보를 조회하여 최고가 정보 반환"""

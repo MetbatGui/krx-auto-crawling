@@ -69,7 +69,7 @@ class MasterReportService:
         
         for item in data_list:
             if item.data.empty:
-                print(f"  [Service:MasterReport] ⚠️  {item.key} 데이터가 비어있어 건너뜁니다.")
+                print(f"  [Service:MasterReport] [Warn]  {item.key} 데이터가 비어있어 건너뜁니다.")
                 continue
             
             try:
@@ -79,7 +79,7 @@ class MasterReportService:
                 if top_stocks:
                     top_stocks_map[item.key] = top_stocks
             except Exception as e:
-                print(f"  [Service:MasterReport] 🚨 {item.key} 업데이트 실패: {e}")
+                print(f"  [Service:MasterReport] [Error] {item.key} 업데이트 실패: {e}")
         
         return top_stocks_map
     
@@ -101,7 +101,7 @@ class MasterReportService:
         """
         base_name = self.file_map.get(report_key)
         if not base_name:
-            print(f"    -> [Service:MasterReport] 🚨 알 수 없는 리포트 키: {report_key}")
+            print(f"    -> [Service:MasterReport] [Error] 알 수 없는 리포트 키: {report_key}")
             return []
         
         # 동적 경로 및 파일명 생성
@@ -164,7 +164,7 @@ class MasterReportService:
             )
             
             if not existing_pivot.empty:
-                print(f"    -> [Service:MasterReport] ⚠️ {pivot_sheet_name} 피벗 시트가 이미 존재하여 업데이트를 건너뜁니다.")
+                print(f"    -> [Service:MasterReport] [Warn] {pivot_sheet_name} 피벗 시트가 이미 존재하여 업데이트를 건너뜁니다.")
                 return self.data_service.extract_top_stocks(existing_pivot, top_n=30)
                 
         except Exception as e:
@@ -256,12 +256,12 @@ class MasterReportService:
                 print(f"    -> [Service:MasterReport] 기존 '{sheet_name}' 시트 데이터 ({len(result)}줄) 로드 완료")
                 return result
             else:
-                print(f"    -> [Service:MasterReport] ⚠️ {sheet_name} 시트 헤더가 손상됨 (또는 없음)")
+                print(f"    -> [Service:MasterReport] [Warn] {sheet_name} 시트 헤더가 손상됨 (또는 없음)")
                 return pd.DataFrame(columns=self.data_service.excel_columns)
                 
         except (FileNotFoundError, ValueError, KeyError) as e:
-            print(f"    -> [Service:MasterReport] ⚠️ 시트가 없어 새로 생성합니다")
+            print(f"    -> [Service:MasterReport] [Warn] 시트가 없어 새로 생성합니다")
             return pd.DataFrame(columns=self.data_service.excel_columns)
         except Exception as e:
-            print(f"    -> [Service:MasterReport] 🚨 파일 로드 실패: {e}")
+            print(f"    -> [Service:MasterReport] [Error] 파일 로드 실패: {e}")
             raise

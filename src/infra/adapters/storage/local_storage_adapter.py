@@ -209,3 +209,21 @@ class LocalStorageAdapter(StoragePort):
         except Exception as e:
             print(f"[LocalStorage] [Error] 파일 저장 실패 ({path}): {e}")
             return False
+    def list_files(self, directory_path: str) -> list[str]:
+        """디렉토리 내의 파일 리스트를 반환합니다.
+        
+        Args:
+            directory_path (str): 디렉토리 경로 (base_path 상대 경로).
+            
+        Returns:
+            list[str]: 파일명 리스트.
+        """
+        try:
+            full_path = self.base_path / directory_path
+            if not full_path.exists() or not full_path.is_dir():
+                return []
+            
+            return [f.name for f in full_path.iterdir() if f.is_file()]
+        except Exception as e:
+            print(f"[LocalStorage] [Error] 파일 목록 조회 실패 ({directory_path}): {e}")
+            return []

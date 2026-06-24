@@ -131,3 +131,15 @@ class StoragePort(ABC):
             bool: 저장 성공 여부.
         """
         pass
+
+    @abstractmethod
+    def list_files(self, directory_path: str) -> list[str]:
+        """디렉토리 내의 파일 리스트를 반환합니다.
+        
+        Args:
+            directory_path (str): 디렉토리 경로 (상대 경로).
+            
+        Returns:
+            list[str]: 파일명 리스트.
+        """
+        pass

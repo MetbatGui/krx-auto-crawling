@@ -28,14 +28,14 @@ class TestHighPriceIndicatorService:
             high_52w=85000,
             all_time_high=90000
         )
-        price_port.get_price_info.return_value = price_info
+        price_port.get_bulk_price_info.return_value = {"005930": price_info}
         
         # When
         ticker_map = {"삼성전자": "005930"}
         result = service.analyze_high_price_indicators(ticker_map, "20250105")
         
         # Then
-        assert result["삼성전자"]["text"] == "⭐역사적 신고가"
+        assert result["삼성전자"]["text"] == "역·신"
         assert result["삼성전자"]["color"] == "all_time_high"
     
     def test_near_all_time_high_priority(self, service, price_port):
@@ -47,14 +47,14 @@ class TestHighPriceIndicatorService:
             high_52w=95000,
             all_time_high=100000  # 95% 이상이므로 근접
         )
-        price_port.get_price_info.return_value = price_info
+        price_port.get_bulk_price_info.return_value = {"000660": price_info}
         
         # When
         ticker_map = {"SK하이닉스": "000660"}
         result = service.analyze_high_price_indicators(ticker_map, "20250105")
         
         # Then: 역사적 근접이 우선
-        assert result["SK하이닉스"]["text"] == "📈역사적 근접"
+        assert result["SK하이닉스"]["text"] == "역·근"
         assert result["SK하이닉스"]["color"] == "near_all_time_high"
     
     def test_week_52_high_priority(self, service, price_port):
@@ -66,14 +66,14 @@ class TestHighPriceIndicatorService:
             high_52w=50000,
             all_time_high=100000  # 50% 미만
         )
-        price_port.get_price_info.return_value = price_info
+        price_port.get_bulk_price_info.return_value = {"005380": price_info}
         
         # When
         ticker_map = {"현대차": "005380"}
         result = service.analyze_high_price_indicators(ticker_map, "20250105")
         
         # Then
-        assert result["현대차"]["text"] == "🔥52주"
+        assert result["현대차"]["text"] == "52·신"
         assert result["현대차"]["color"] == "week_52_high"
     
     def test_near_52w_high_priority(self, service, price_port):
@@ -85,14 +85,14 @@ class TestHighPriceIndicatorService:
             high_52w=50000,  # 92% - 근접
             all_time_high=100000
         )
-        price_port.get_price_info.return_value = price_info
+        price_port.get_bulk_price_info.return_value = {"035720": price_info}
         
         # When
         ticker_map = {"카카오": "035720"}
         result = service.analyze_high_price_indicators(ticker_map, "20250105")
         
         # Then
-        assert result["카카오"]["text"] == "📊52주 근접"
+        assert result["카카오"]["text"] == "52·근"
         assert result["카카오"]["color"] == "near_52w_high"
     
     def test_no_indicator(self, service, price_port):
@@ -104,7 +104,7 @@ class TestHighPriceIndicatorService:
             high_52w=80000,
             all_time_high=100000
         )
-        price_port.get_price_info.return_value = price_info
+        price_port.get_bulk_price_info.return_value = {"005930": price_info}
         
         # When
         ticker_map = {"삼성전자": "005930"}
@@ -117,7 +117,7 @@ class TestHighPriceIndicatorService:
     def test_price_info_not_found(self, service, price_port):
         """가격 정보 조회 실패 시 테스트"""
         # Given
-        price_port.get_price_info.return_value = None
+        price_port.get_bulk_price_info.return_value = {}
         
         # When
         ticker_map = {"테스트종목": "999999"}
@@ -130,14 +130,10 @@ class TestHighPriceIndicatorService:
     def test_multiple_stocks(self, service, price_port):
         """여러 종목 동시 처리 테스트"""
         # Given
-        def get_price_info_side_effect(ticker, date_str):
-            if ticker == "005930":
-                return StockPriceInfo("005930", 90000, 85000, 90000)
-            elif ticker == "000660":
-                return StockPriceInfo("000660", 50000, 50000, 100000)
-            return None
-        
-        price_port.get_price_info.side_effect = get_price_info_side_effect
+        price_port.get_bulk_price_info.return_value = {
+            "005930": StockPriceInfo("005930", 90000, 85000, 90000),
+            "000660": StockPriceInfo("000660", 50000, 50000, 100000)
+        }
         
         # When
         ticker_map = {
@@ -147,5 +143,5 @@ class TestHighPriceIndicatorService:
         result = service.analyze_high_price_indicators(ticker_map, "20250105")
         
         # Then
-        assert result["삼성전자"]["text"] == "⭐역사적 신고가"
-        assert result["SK하이닉스"]["text"] == "🔥52주"
+        assert result["삼성전자"]["text"] == "역·신"
+        assert result["SK하이닉스"]["text"] == "52·신"

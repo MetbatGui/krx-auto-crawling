@@ -44,3 +44,9 @@ release:
 # Usage: just auth
 auth:
     uv run netbuy auth
+
+# Run backfill command locally
+# Usage: just backfill -s YYYYMMDD [-e YYYYMMDD] [--drive]
+# Example: just backfill -s 20260501 -d
+backfill +args:
+    uv run netbuy backfill {{args}}

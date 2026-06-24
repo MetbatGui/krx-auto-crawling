@@ -51,7 +51,7 @@ class MasterDataService:
             return formatted_df
             
         except Exception as e:
-            print(f"    -> [Service:MasterData] 🚨 데이터 변환 실패: {e}")
+            print(f"    -> [Service:MasterData] [Error] 데이터 변환 실패: {e}")
             raise
     
     def check_duplicate_date(
@@ -80,7 +80,7 @@ class MasterDataService:
             is_duplicate = target_date_str in existing_dates
             
             if is_duplicate:
-                print(f"    -> [Service:MasterData] ⚠️ {date_int} 데이터 중복 발견")
+                print(f"    -> [Service:MasterData] [Warn] {date_int} 데이터 중복 발견")
             
             return is_duplicate
         except Exception:
@@ -123,7 +123,7 @@ class MasterDataService:
             pd.DataFrame: 정렬된 피벗 DataFrame (총계 포함).
         """
         if data.empty:
-            print(f"    -> [Service:MasterData] ⚠️ 데이터가 비어있어 피벗을 생성할 수 없습니다.")
+            print(f"    -> [Service:MasterData] [Warn] 데이터가 비어있어 피벗을 생성할 수 없습니다.")
             return pd.DataFrame()
         
         try:
@@ -151,7 +151,7 @@ class MasterDataService:
             return pivot_sorted
             
         except Exception as e:
-            print(f"    -> [Service:MasterData] 🚨 피벗 계산 실패: {e}")
+            print(f"    -> [Service:MasterData] [Error] 피벗 계산 실패: {e}")
             return pd.DataFrame()
     
     def extract_top_stocks(
@@ -169,7 +169,7 @@ class MasterDataService:
             List[str]: 상위 N개 종목명 리스트.
         """
         if pivot_data.empty or '총계' not in pivot_data.columns:
-            print(f"    -> [Service:MasterData] ⚠️ 피벗 데이터가 비어있거나 총계 컬럼이 없습니다")
+            print(f"    -> [Service:MasterData] [Warn] 피벗 데이터가 비어있거나 총계 컬럼이 없습니다")
             return []
         
         top_stocks = pivot_data.nlargest(top_n, '총계').index.tolist()

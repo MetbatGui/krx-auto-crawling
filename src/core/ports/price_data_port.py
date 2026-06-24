@@ -61,3 +61,16 @@ class PriceDataPort(ABC):
             Optional[StockPriceInfo]: 가격 정보, 조회 실패 시 None
         """
         pass
+
+    @abstractmethod
+    def get_bulk_price_info(self, tickers: list[str], date_str: str) -> dict[str, StockPriceInfo]:
+        """여러 종목의 가격 정보를 한 번에 조회합니다.
+        
+        Args:
+            tickers (list[str]): 종목코드 리스트.
+            date_str (str): 조회 날짜 (YYYYMMDD 형식).
+            
+        Returns:
+            dict[str, StockPriceInfo]: 종목코드를 키로 하는 가격 정보 딕셔너리.
+        """
+        pass

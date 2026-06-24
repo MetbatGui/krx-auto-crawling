@@ -34,7 +34,7 @@ class HighPriceIndicatorService:
         ticker_map: Dict[str, str],
         date_str: str
     ) -> Dict[str, Dict[str, Optional[str]]]:
-        """종목별 신고가 지표를 분석합니다.
+        """종목별 신고가 지표를 분석합니다. 벌크 조회를 사용하여 성능을 최적화합니다.
         
         Args:
             ticker_map (Dict[str, str]): 종목명 -> 종목코드 매핑.
@@ -45,24 +45,31 @@ class HighPriceIndicatorService:
                 {'text': 표시 텍스트, 'color': 색상 코드}를 밸류로 하는 딕셔너리.
         """
         result = {}
+        tickers = list(ticker_map.values())
         
-        print(f"[Service:HighPriceIndicator] 신고가 지표 분석 시작 ({len(ticker_map)}개 종목, {date_str})")
+        print(f"[Service:HighPriceIndicator] 신고가 지표 벌크 분석 시작 ({len(tickers)}개 종목, {date_str})")
         
-        for stock_name, ticker in ticker_map.items():
-            try:
-                price_info = self.price_port.get_price_info(ticker, date_str)
+        try:
+            # 벌크 데이터 조회 (O(1) 수준의 네트워크 요청)
+            price_info_map = self.price_port.get_bulk_price_info(tickers, date_str)
+            
+            for stock_name, ticker in ticker_map.items():
+                price_info = price_info_map.get(ticker)
                 
                 if price_info:
                     text, color = self._get_indicator_display(price_info)
                     result[stock_name] = {'text': text, 'color': color}
                 else:
+                    # 데이터가 없는 경우 (상장 폐지 등)
                     result[stock_name] = {'text': None, 'color': None}
                     
-            except Exception as e:
-                print(f"  [Service:HighPriceIndicator] ⚠️ {stock_name}({ticker}) 분석 실패: {e}")
+        except Exception as e:
+            print(f"  [Service:HighPriceIndicator] ⚠️ 벌크 분석 중 오류 발생: {e}")
+            # 전체 실패 시 빈 값으로 채움
+            for stock_name in ticker_map.keys():
                 result[stock_name] = {'text': None, 'color': None}
         
-        indicators_count = sum(1 for v in result.values() if v['text'] is not None)
+        indicators_count = sum(1 for v in result.values() if v.get('text') is not None)
         print(f"[Service:HighPriceIndicator] 분석 완료 ({indicators_count}개 지표 발견)")
         
         return result

@@ -75,7 +75,7 @@ class MasterPivotSheetAdapter:
             
             print(f"    -> [Adapter:MasterPivotSheet] 피벗 시트 서식 적용 완료")
         else:
-            print(f"    -> [Adapter:MasterPivotSheet] ⚠️ 빈 피벗 시트 생성")
+            print(f"    -> [Adapter:MasterPivotSheet] [Warn] 빈 피벗 시트 생성")
     
     def _apply_header_format(self, ws, max_col, header_fill):
         """헤더 배경색 및 날짜 포맷 적용"""
@@ -126,4 +126,4 @@ class MasterPivotSheetAdapter:
                     if row[0].value in top_5_map:
                         row[target_col - 1].fill = top_5_map[row[0].value]
         except Exception as e:
-            print(f"    -> [Adapter:MasterPivotSheet] ⚠️ 배경색 적용 건너뜀: {e}")
+            print(f"    -> [Adapter:MasterPivotSheet] [Warn] 배경색 적용 건너뜀: {e}")

@@ -73,5 +73,5 @@ class RankingAnalysisService:
         
         success = self.report_port.update_report(report_date, data_map, common_stocks)
         
-        status = "✅ 순위표 업데이트 완료" if success else "🚨 순위표 업데이트 실패"
+        status = "[OK] 순위표 업데이트 완료" if success else "[Error] 순위표 업데이트 실패"
         print(f"    -> [Service:RankingAnalysis] {status}")
